@@ -1,0 +1,12 @@
+node_modules/
+dist/
+nodemon.json
+uploads/
+*.log
+.DS_Store
+public/account/
+public/inventory/
+public/store/
+CLAUDE.md
+cookie.txt
+SYSTEM_DOCUMENTATION.md

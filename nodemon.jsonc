@@ -1,0 +1,39 @@
+{
+    "restartable": "rs",
+    "ignore": [
+        "/.git",
+        "/node_modules/*",
+        "/src/client/*",
+        "/dist/*"
+    ],
+    "exec": "ts-node src/server/app.ts",
+    "ext": "ts,js,json",
+    "env": {
+        "APP_NAME": "Elegance by Sconia",
+        "NODE_ENV": "development",
+        "PORT": "8000",
+        "BASE_URL": "http://localhost:8000",
+        "ALLOW_REGISTRATION": "false",
+        "DATABASE_URL": "",
+        "REDIS_URL": "redis://127.0.0.1:6379/0",
+        "SESSION_SECRET": "",
+        "RECAPTCHA_SITE_KEY": "",
+        "RECAPTCHA_SECRET_KEY": "",
+        "PAYSTACK_PUBLIC_KEY": "",
+        "PAYSTACK_SECRET_KEY": "",
+        "MAIL_HOST": "smtp.gmail.com",
+        "MAIL_PORT": "587",
+        "MAIL_USER": "",
+        "MAIL_PASSWORD": "",
+        "MAIL_FROM": "Elegance by Sconia <elegancebysconia@gmail.com>",
+        "AWS_REGION": "us-east-1",
+        "AWS_S3_BUCKET": "",
+        "AWS_ACCESS_KEY_ID": "",
+        "AWS_SECRET_ACCESS_KEY": "",
+        "MAX_IMAGE_SIZE": "5",
+        "OWNER_NAME": "Elegance by Sconia",
+        "OWNER_EMAIL": "",
+        "OWNER_PHONE": "",
+        "OWNER_TEMP_PASSWORD": ""
+    }
+}
