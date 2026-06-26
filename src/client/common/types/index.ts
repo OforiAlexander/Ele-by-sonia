@@ -42,6 +42,7 @@ export interface CurrentUser {
 
 export interface ApiResponse<T = unknown> {
   code: string;
+  message?: string;
   data?: T;
   errors?: Array<{ msg: string; path?: string }>;
 }
@@ -112,4 +113,21 @@ export interface Setting {
   value: string;
   group: string;
   editable: boolean;
+}
+
+export interface StockHealthData {
+  healthy:        number;
+  lowStock:       number;
+  outOfStock:     number;
+  total:          number;
+  inventoryValue: number;
+}
+
+export interface DashSummary {
+  totalProducts:  number;
+  totalSales:     number;
+  topSellingItem: string;
+  chart:          { labels: string[]; values: number[] };
+  topItems:       { name: string; revenue: number }[];
+  categories:     { name: string; revenue: number }[];
 }

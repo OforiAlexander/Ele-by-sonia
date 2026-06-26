@@ -11,5 +11,5 @@ if (fs.existsSync(nodemonPath)) {
 }
 
 const [, , cmd, ...args] = process.argv;
-const result = spawnSync(cmd, args, { stdio: 'inherit', env: process.env, shell: true });
+const result = spawnSync(cmd, args, { stdio: 'inherit', env: process.env, shell: false });
 process.exit(result.status ?? 1);

@@ -8,6 +8,7 @@ import {
     profitController,
     topProductsController,
     chartController,
+    stockHealthController,
 } from './reports.controller';
 
 const router = Router();
@@ -59,6 +60,12 @@ router.get('/chart',
     query('metric').optional().isIn(['revenue', 'profit', 'units']).withMessage('metric must be revenue, profit, or units.'),
     checkForValidationErrors,
     chartController,
+);
+
+router.get('/stock-health',
+    isLoggedIn,
+    hasPermission('can_view_reports'),
+    stockHealthController,
 );
 
 export default router;

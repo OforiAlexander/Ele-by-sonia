@@ -10,3 +10,5 @@ public/store/
 CLAUDE.md
 cookie.txt
 SYSTEM_DOCUMENTATION.md
+dump.rdb
+app.scss

@@ -101,3 +101,61 @@ export const roleSchema = Yup.object({
   name: Yup.string().required(),
   created_at: Yup.string().required(),
 }).required();
+
+// ─── StockHealthData ──────────────────────────────────────────────────────────
+// Mirrors: src/client/common/types/index.ts → StockHealthData
+// Returned by GET /api/reports/stock-health
+export const stockHealthSchema = Yup.object({
+  total:          Yup.number().integer().min(0).required(),
+  healthy:        Yup.number().integer().min(0).required(),
+  lowStock:       Yup.number().integer().min(0).required(),
+  outOfStock:     Yup.number().integer().min(0).required(),
+  inventoryValue: Yup.number().min(0).required(),
+}).required();
+
+// ─── Reports summary ──────────────────────────────────────────────────────────
+// Returned by GET /api/reports/summary?period=*
+// Hook extracts: data.revenue → DashSummary.totalSales
+export const reportsSummarySchema = Yup.object({
+  period:        Yup.string().required(),
+  from:          Yup.string().required(),
+  to:            Yup.string().required(),
+  revenue:       Yup.number().required(),
+  cost:          Yup.number().required(),
+  profit:        Yup.number().required(),
+  marginPercent: Yup.number().required(),
+  salesCount:    Yup.number().integer().required(),
+  unitsSold:     Yup.number().integer().required(),
+}).required();
+
+// ─── Chart data ───────────────────────────────────────────────────────────────
+// Returned by GET /api/reports/chart?period=*&metric=*
+// Hook extracts: data.labels, data.values → DashSummary.chart
+export const chartSchema = Yup.object({
+  labels: Yup.array().of(Yup.string().required()).required(),
+  values: Yup.array().of(Yup.number().required()).required(),
+}).required();
+
+// ─── Top product item ─────────────────────────────────────────────────────────
+// One element from GET /api/reports/top-products?period=*
+// Hook extracts: item.productName, item.revenue → DashSummary.topItems
+export const topProductSchema = Yup.object({
+  productId:   Yup.string().uuid().required(),
+  variantId:   Yup.string().uuid().required(),
+  productName: Yup.string().required(),
+  sku:         Yup.string().nullable().optional(),
+  options:     Yup.string().nullable().optional(),
+  unitsSold:   Yup.number().integer().required(),
+  revenue:     Yup.number().required(),
+}).required();
+
+// ─── Profit breakdown item ────────────────────────────────────────────────────
+// One element from GET /api/reports/profit?period=*&groupBy=*
+// Hook extracts: item.group, item.revenue → DashSummary.categories
+export const profitBreakdownItemSchema = Yup.object({
+  group:   Yup.string().required(),
+  revenue: Yup.number().required(),
+  cost:    Yup.number().required(),
+  profit:  Yup.number().required(),
+  margin:  Yup.number().required(),
+}).required();

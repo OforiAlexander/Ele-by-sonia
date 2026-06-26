@@ -1,0 +1,303 @@
+$auth-dark:    #0A5C3F;
+$auth-accent:  #E3A92B;
+$auth-muted:   #8AAE9E;
+$auth-body:    #D4EBE0;
+
+// ── Shell layout ─────────────────────────────────────────────────────────────
+
+.auth-shell {
+  display: flex;
+  min-height: 100vh;
+  background: #f4f7f5;
+}
+
+// ── Left brand panel (60%) ────────────────────────────────────────────────────
+
+.auth-brand {
+  background: $auth-dark;
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 40%;
+  min-height: 100vh;
+  padding: 52px 64px;
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-brand-blob {
+  position: absolute;
+  top: -160px;
+  right: -160px;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+  pointer-events: none;
+}
+
+.auth-brand-blob-2 {
+  position: absolute;
+  bottom: -100px;
+  left: -120px;
+  width: 420px;
+  height: 420px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.025);
+  pointer-events: none;
+}
+
+.auth-brand-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  position: relative;
+  z-index: 1;
+}
+
+.auth-brand-headline {
+  color: #fff;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 52px;
+  font-weight: 700;
+  line-height: 1.12;
+  margin: 52px 0 14px;
+  letter-spacing: -0.5px;
+}
+
+.auth-brand-sub {
+  color: $auth-muted;
+  font-size: 17px;
+  line-height: 1.65;
+  margin: 0 0 44px;
+  max-width: 440px;
+}
+
+.auth-bullets {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  flex: 1;
+}
+
+.auth-bullet {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.auth-bullet-check {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  border-radius: 50%;
+  background: rgba(227, 169, 43, 0.15);
+  border: 1.5px solid rgba(227, 169, 43, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+}
+
+.auth-bullet-text {
+  color: $auth-body;
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.auth-brand-quote {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 24px;
+  margin-top: 40px;
+}
+
+.auth-brand-quote-text {
+  color: $auth-muted;
+  font-size: 14.5px;
+  font-style: italic;
+  line-height: 1.7;
+  margin: 0 0 8px;
+}
+
+.auth-brand-quote-attr {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12.5px;
+}
+
+// ── Right form panel (40%) ────────────────────────────────────────────────────
+
+.auth-form-panel {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 32px;
+}
+
+.auth-form-inner {
+  width: 100%;
+  max-width: 400px;
+}
+
+// ── Card wrapper around the form ──────────────────────────────────────────────
+
+.auth-card {
+  background: #fff;
+  border: 1.5px solid rgba(10, 92, 63, 0.13);
+  border-radius: 16px;
+  box-shadow:
+    0 4px 24px rgba(10, 92, 63, 0.07),
+    0 1px 6px rgba(0, 0, 0, 0.05);
+  padding: 36px 32px 40px;
+  width: 100%;
+}
+
+// ── Typography helpers ────────────────────────────────────────────────────────
+
+.auth-eyebrow {
+  color: $auth-accent;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin: 0 0 8px;
+}
+
+.auth-title {
+  color: #0d1f17;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.15;
+  margin: 0 0 6px;
+}
+
+.auth-subtitle {
+  color: #6b7e75;
+  font-size: 14px;
+  line-height: 1.55;
+  margin: 0 0 24px;
+}
+
+.auth-link {
+  color: $auth-accent;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.auth-footer-text {
+  text-align: center;
+  font-size: 13.5px;
+  color: #6b7e75;
+  margin-top: 4px;
+
+  a {
+    color: $auth-dark;
+    font-weight: 600;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+// ── Mobile logo (shown only when left panel is hidden) ────────────────────────
+
+.auth-mobile-logo {
+  display: none;
+  margin-bottom: 24px;
+}
+
+// ── Mantine input overrides (affects all auth portal inputs) ──────────────────
+
+.mantine-TextInput-label,
+.mantine-PasswordInput-label,
+.mantine-Textarea-label,
+.mantine-Select-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #2d4a3e;
+  margin-bottom: 6px;
+}
+
+.mantine-TextInput-input {
+  background-color: #f4f8f6;
+  border: 1.5px solid #cddbd4;
+  border-radius: 8px;
+  font-size: 14.5px;
+  height: 44px;
+  padding-left: 14px;
+  padding-right: 14px;
+  color: #0d1f17;
+
+  &:focus {
+    border-color: $auth-dark;
+  }
+
+  &::placeholder {
+    color: #a0b8af;
+  }
+}
+
+.mantine-PasswordInput-input {
+  background-color: #f4f8f6;
+  border: 1.5px solid #cddbd4;
+  border-radius: 8px;
+  height: 44px;
+  padding-left: 0;
+
+  &:focus-within {
+    border-color: $auth-dark;
+  }
+}
+
+.mantine-PasswordInput-innerInput {
+  font-size: 14.5px;
+  padding-left: 14px;
+  color: #0d1f17;
+  height: 100%;
+
+  &::placeholder {
+    color: #a0b8af;
+  }
+}
+
+.mantine-PinInput-input {
+  background-color: #f4f8f6;
+  border: 1.5px solid #cddbd4;
+  border-radius: 8px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #0d1f17;
+
+  &:focus {
+    border-color: $auth-dark;
+  }
+}
+
+// ── Responsive ────────────────────────────────────────────────────────────────
+
+@media (max-width: 960px) {
+  .auth-brand {
+    display: none;
+  }
+
+  .auth-shell {
+    background: #f4f7f5;
+  }
+
+  .auth-form-panel {
+    padding: 40px 20px;
+    align-items: flex-start;
+    padding-top: 56px;
+  }
+
+  .auth-mobile-logo {
+    display: block;
+  }
+}
