@@ -1,11 +1,12 @@
 import React from 'react';
-import { Skeleton } from '@mantine/core';
+import { Group, Paper, Skeleton, Stack, Text, ThemeIcon } from '@mantine/core';
 import { t } from '../translations';
 import { KEYS } from '../keys';
 
 interface Props {
   total:    number;
   active:   number;
+  pending:  number;
   inactive: number;
   loading:  boolean;
 }
@@ -27,6 +28,16 @@ const IconActiveStaff: React.FC = () => (
   </svg>
 );
 
+const IconPendingStaff: React.FC = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+    <circle cx="9" cy="7" r="4"/>
+    <circle cx="19" cy="19" r="3"/>
+    <line x1="19" y1="17" x2="19" y2="19"/>
+    <line x1="19" y1="21" x2="19.01" y2="21"/>
+  </svg>
+);
+
 const IconInactiveStaff: React.FC = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -37,26 +48,31 @@ const IconInactiveStaff: React.FC = () => (
 );
 
 const STATS = [
-  { icon: <IconAllStaff />,      modifier: '--all',      labelKey: KEYS.staff.stat.total,    getValue: (p: Props) => p.total },
-  { icon: <IconActiveStaff />,   modifier: '--active',   labelKey: KEYS.staff.stat.active,   getValue: (p: Props) => p.active },
-  { icon: <IconInactiveStaff />, modifier: '--inactive', labelKey: KEYS.staff.stat.inactive, getValue: (p: Props) => p.inactive },
+  { icon: <IconAllStaff />,      color: 'blue',   labelKey: KEYS.staff.stat.total,    getValue: (p: Props) => p.total },
+  { icon: <IconActiveStaff />,   color: 'green',  labelKey: KEYS.staff.stat.active,   getValue: (p: Props) => p.active },
+  { icon: <IconPendingStaff />,  color: 'orange', labelKey: KEYS.staff.stat.pending,  getValue: (p: Props) => p.pending },
+  { icon: <IconInactiveStaff />, color: 'gray',   labelKey: KEYS.staff.stat.inactive, getValue: (p: Props) => p.inactive },
 ] as const;
 
 const StaffSummaryBar: React.FC<Props> = (props) => (
-  <div className="staff-summary-bar">
-    {STATS.map(({ icon, modifier, labelKey, getValue }) => (
-      <div key={modifier} className="staff-stat">
-        <div className={`staff-stat-icon staff-stat-icon${modifier}`}>{icon}</div>
-        <div>
-          {props.loading
-            ? <Skeleton height={22} width={44} mb={4} radius="sm" />
-            : <div className="staff-stat-value">{getValue(props)}</div>
-          }
-          <div className="staff-stat-label">{t(labelKey)}</div>
-        </div>
-      </div>
+  <Group grow gap="md" mb="md">
+    {STATS.map(({ icon, color, labelKey, getValue }) => (
+      <Paper key={labelKey} p="md" radius="md" withBorder>
+        <Group gap="md" wrap="nowrap">
+          <ThemeIcon size="lg" radius="md" color={color} variant="light">
+            {icon}
+          </ThemeIcon>
+          <Stack gap={0}>
+            {props.loading
+              ? <Skeleton height={22} width={44} mb={4} radius="sm" />
+              : <Text fw={700} size="xl" lh={1}>{getValue(props)}</Text>
+            }
+            <Text size="sm" c="dimmed">{t(labelKey)}</Text>
+          </Stack>
+        </Group>
+      </Paper>
     ))}
-  </div>
+  </Group>
 );
 
 export default StaffSummaryBar;

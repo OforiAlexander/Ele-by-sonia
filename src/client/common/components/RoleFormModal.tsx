@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { Modal, TextInput, Checkbox, Button, Group, Stack, Skeleton } from '@mantine/core';
-import Swal from 'sweetalert2';
+import { useFormik } from 'formik';
+import * as Yup from 'yup';
+import { Button, Checkbox, Divider, Group, Modal, ScrollArea, Skeleton, Stack, Text, TextInput } from '@mantine/core';
 import { t } from '../translations';
 import { KEYS } from '../keys';
 import { Role } from '../types';
+import { showError } from '../utils/swal';
 import { usePermissions } from '../hooks/usePermissions';
 
 interface Props {
@@ -12,108 +14,104 @@ interface Props {
   onSubmit: (name: string, permissionIds: string[]) => Promise<Role>;
 }
 
+const nameSchema = Yup.object({
+  name: Yup.string().trim().required(t(KEYS.roles.form.nameRequired)),
+});
+
 function resourceLabel(resource: string): string {
   return resource.charAt(0).toUpperCase() + resource.slice(1);
 }
 
 const RoleFormModal: React.FC<Props> = ({ opened, onClose, onSubmit }) => {
   const { permissions, loading } = usePermissions();
-  const [name, setName]                     = useState('');
-  const [selected, setSelected]             = useState<string[]>([]);
-  const [submitting, setSubmitting]         = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+
+  const formik = useFormik({
+    initialValues: { name: '' },
+    validationSchema: nameSchema,
+    onSubmit: async ({ name }) => {
+      try {
+        await onSubmit(name.trim(), selected);
+        formik.resetForm();
+        setSelected([]);
+      } catch {
+        showError(t(KEYS.roles.errorCreateTitle), t(KEYS.roles.errorCreateFallback));
+      }
+    },
+  });
+
+  const handleClose = () => {
+    formik.resetForm();
+    setSelected([]);
+    onClose();
+  };
 
   const toggle = (id: string) =>
     setSelected((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
 
-  const handleClose = () => {
-    setName('');
-    setSelected([]);
-    onClose();
-  };
-
-  const handleSubmit = async () => {
-    if (!name.trim()) return;
-    setSubmitting(true);
-    try {
-      await onSubmit(name.trim(), selected);
-      setName('');
-      setSelected([]);
-    } catch {
-      Swal.fire({
-        title: t(KEYS.roles.errorCreateTitle),
-        text:  t(KEYS.roles.errorCreateFallback),
-        icon:  'error',
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const entries = Object.entries(permissions);
 
   return (
     <Modal
       opened={opened}
       onClose={handleClose}
       title={t(KEYS.roles.form.title)}
-      size="lg"
+      size="xl"
       centered
+      scrollAreaComponent={ScrollArea.Autosize}
     >
-      <Stack gap="md">
-        <TextInput
-          label={t(KEYS.roles.form.name)}
-          placeholder={t(KEYS.roles.form.namePlaceholder)}
-          value={name}
-          onChange={(e) => setName(e.currentTarget.value)}
-          required
-        />
+      <form onSubmit={formik.handleSubmit} noValidate>
+        <Stack gap="md">
+          <TextInput
+            label={t(KEYS.roles.form.name)}
+            placeholder={t(KEYS.roles.form.namePlaceholder)}
+            {...formik.getFieldProps('name')}
+            error={formik.touched.name ? formik.errors.name : undefined}
+            required
+          />
 
-        <div>
-          <span className="role-form-permissions-label">{t(KEYS.roles.form.permissions)}</span>
-          {loading ? (
-            <Stack gap="xs" mt="xs">
-              {[1, 2, 3].map((i) => <Skeleton key={i} height={36} radius="sm" />)}
-            </Stack>
-          ) : (
-            <div className="role-form-groups">
-              {Object.entries(permissions).map(([resource, perms]) => (
-                <div key={resource} className="role-form-group">
-                  <span className="role-form-group-name">{resourceLabel(resource)}</span>
-                  <div className="role-form-checkboxes">
-                    {perms.map((p) => (
-                      <div key={p.id} className="role-form-checkbox-item">
+          <div>
+            <Text size="sm" fw={500} mb="xs">{t(KEYS.roles.form.permissions)}</Text>
+            {loading ? (
+              <Stack gap="xs">
+                {[1, 2, 3].map((i) => <Skeleton key={i} height={36} radius="sm" />)}
+              </Stack>
+            ) : (
+              <Stack gap="md">
+                {entries.map(([resource, perms], idx) => (
+                  <React.Fragment key={resource}>
+                    <Stack gap="xs">
+                      <Text size="xs" fw={600} c="dimmed" tt="uppercase" lts={0.5}>
+                        {resourceLabel(resource)}
+                      </Text>
+                      {perms.map((p) => (
                         <Checkbox
-                          label={
-                            <span className="role-form-checkbox-label">
-                              {p.label}
-                              {p.is_sensitive && (
-                                <span className="role-form-sensitive-tag">
-                                  {t(KEYS.roles.form.sensitive)}
-                                </span>
-                              )}
-                            </span>
-                          }
+                          key={p.id}
+                          label={p.label}
                           checked={selected.includes(p.id)}
                           onChange={() => toggle(p.id)}
                         />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+                      ))}
+                    </Stack>
+                    {idx < entries.length - 1 && <Divider />}
+                  </React.Fragment>
+                ))}
+              </Stack>
+            )}
+          </div>
 
-        <Group justify="flex-end" mt="xs">
-          <Button variant="default" onClick={handleClose} disabled={submitting}>
-            {t(KEYS.common.cancel)}
-          </Button>
-          <Button onClick={handleSubmit} loading={submitting} disabled={!name.trim()}>
-            {t(KEYS.roles.form.submit)}
-          </Button>
-        </Group>
-      </Stack>
+          <Group justify="flex-end" mt="xs">
+            <Button variant="default" type="button" onClick={handleClose} disabled={formik.isSubmitting}>
+              {t(KEYS.common.cancel)}
+            </Button>
+            <Button type="submit" loading={formik.isSubmitting}>
+              {t(KEYS.roles.form.submit)}
+            </Button>
+          </Group>
+        </Stack>
+      </form>
     </Modal>
   );
 };

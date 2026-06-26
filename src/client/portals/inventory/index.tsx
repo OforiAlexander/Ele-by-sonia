@@ -9,9 +9,9 @@ import '@fontsource/ibm-plex-sans/600.css';
 import '@fontsource/space-grotesk/700.css';
 import '../../common/styles/portal.scss';
 import { AuthProvider, useAuth } from '../../common/context/AuthContext';
-import AppLoader from './components/AppLoader';
-import Sidebar from './components/Sidebar';
-import Topbar from './components/Topbar';
+import AppLoader from '../../common/components/AppLoader';
+import Sidebar from '../../common/components/Sidebar';
+import Topbar from '../../common/components/Topbar';
 
 const DashboardPage     = React.lazy(() => import('./pages/DashboardPage'));
 const ProductsPage      = React.lazy(() => import('./pages/ProductsPage'));

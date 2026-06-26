@@ -9,6 +9,8 @@ import {
     createStaffController,
     updateStaffController,
     toggleDeactivateController,
+    resendInvitationController,
+    cancelInvitationController,
 } from './staff.controller';
 
 const router = Router();
@@ -17,14 +19,14 @@ const validateCreate = [
     body('name').notEmpty().withMessage('Name is required.'),
     body('email').isEmail().withMessage('A valid email is required.'),
     body('phone').optional().isString(),
-    body('role_id').optional({ nullable: true }).isUUID().withMessage('role_id must be a valid UUID.'),
+    body('role_id').notEmpty().isUUID().withMessage('A role must be assigned.'),
     checkForValidationErrors,
 ];
 
 const validateUpdate = [
     body('name').notEmpty().withMessage('Name is required.'),
     body('phone').optional().isString(),
-    body('role_id').optional({ nullable: true }).isUUID().withMessage('role_id must be a valid UUID.'),
+    body('role_id').notEmpty().isUUID().withMessage('A role must be assigned.'),
     checkForValidationErrors,
 ];
 
@@ -40,5 +42,7 @@ router.get('/:id', isLoggedIn, hasPermission('can_view_staff'), getStaffControll
 router.post('/', isLoggedIn, hasPermission('can_create_staff'), validateCreate, createStaffController);
 router.put('/:id', isLoggedIn, hasPermission('can_update_staff'), validateUpdate, updateStaffController);
 router.patch('/:id/deactivate', isLoggedIn, hasPermission('can_deactivate_staff'), toggleDeactivateController);
+router.post('/:id/resend-invitation', isLoggedIn, hasPermission('can_create_staff'), resendInvitationController);
+router.delete('/:id', isLoggedIn, hasPermission('can_deactivate_staff'), cancelInvitationController);
 
 export default router;

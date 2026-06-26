@@ -1,21 +1,27 @@
 import React from 'react';
-import { Table, Skeleton, Stack } from '@mantine/core';
+import { Badge, Group, Skeleton, Stack, Table, Text } from '@mantine/core';
 import { t } from '../translations';
 import { KEYS } from '../keys';
 import { StaffMember } from '../types';
 import StaffActionMenu from './StaffActionMenu';
-
+import StaffStatusBadge from './StaffStatusBadge';
 
 interface Props {
-  staff:          StaffMember[];
-  loading:        boolean;
-  canUpdate:      boolean;
-  canDeactivate:  boolean;
-  onEdit:         (s: StaffMember) => void;
-  onToggleStatus: (s: StaffMember) => void;
+  staff:            StaffMember[];
+  loading:          boolean;
+  canUpdate:        boolean;
+  canDeactivate:    boolean;
+  canCreate:        boolean;
+  onEdit:           (s: StaffMember) => void;
+  onToggleStatus:   (s: StaffMember) => void;
+  onResendInvite:   (s: StaffMember) => void;
+  onCancelInvite:   (s: StaffMember) => void;
 }
 
-const StaffTable: React.FC<Props> = ({ staff, loading, canUpdate, canDeactivate, onEdit, onToggleStatus }) => {
+const StaffTable: React.FC<Props> = ({
+  staff, loading, canUpdate, canDeactivate, canCreate,
+  onEdit, onToggleStatus, onResendInvite, onCancelInvite,
+}) => {
   if (loading) {
     return (
       <Stack gap="sm">
@@ -55,38 +61,39 @@ const StaffTable: React.FC<Props> = ({ staff, loading, canUpdate, canDeactivate,
         {staff.map((s) => (
           <Table.Tr key={s.id} className={s.is_active ? '' : 'staff-row--inactive'}>
             <Table.Td>
-              <div className="staff-name-cell">
-                <span className="staff-name-text">{s.name}</span>
-                <div className="staff-email-text">{s.email}</div>
-              </div>
+              <Stack gap={2}>
+                <Text fw={500} size="sm">{s.name}</Text>
+                <Text size="xs" c="dimmed">{s.email}</Text>
+              </Stack>
             </Table.Td>
             <Table.Td>
-              <span className={s.phone ? 'staff-phone-text' : 'staff-muted-text'}>
+              <Text size="sm" c={s.phone ? undefined : 'dimmed'}>
                 {s.phone ?? t(KEYS.common.noData)}
-              </span>
+              </Text>
             </Table.Td>
             <Table.Td>
               {s.role
-                ? <span className="staff-role-badge">{s.role.name}</span>
-                : <span className="staff-muted-text">{t(KEYS.staff.table.noRole)}</span>
+                ? <Badge size="sm" radius="sm" variant="light" color="violet">{s.role.name}</Badge>
+                : <Text size="sm" c="dimmed">{t(KEYS.staff.table.noRole)}</Text>
               }
             </Table.Td>
             <Table.Td>
-              <div className="staff-status-cell">
-                <span className={`staff-status-dot staff-status-dot--${s.is_active ? 'active' : 'inactive'}`} />
-                <span className="staff-status-text">
-                  {s.is_active ? t(KEYS.staff.status.active) : t(KEYS.staff.status.inactive)}
-                </span>
-              </div>
+              {s.must_change_password
+                ? <Text size="sm" c="dimmed">{t(KEYS.staff.status.pending)}</Text>
+                : <StaffStatusBadge isActive={s.is_active} />
+              }
             </Table.Td>
             <Table.Td>
-              {(canUpdate || canDeactivate) && (
+              {(canUpdate || canDeactivate || canCreate) && (
                 <StaffActionMenu
                   staff={s}
                   canUpdate={canUpdate}
                   canDeactivate={canDeactivate}
+                  canCreate={canCreate}
                   onEdit={() => onEdit(s)}
                   onToggleStatus={() => onToggleStatus(s)}
+                  onResendInvite={() => onResendInvite(s)}
+                  onCancelInvite={() => onCancelInvite(s)}
                 />
               )}
             </Table.Td>

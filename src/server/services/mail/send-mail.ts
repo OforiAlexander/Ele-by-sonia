@@ -30,12 +30,13 @@ export async function sendMail(options: SendMailOptions): Promise<void> {
     text: text ?? html.replace(/<[^>]+>/g, ''),
   });
 
-  await Message.query().insert({
+  logger.info(`Email sent to ${to}: ${subject}`);
+
+  // Log to DB after the send succeeds — a DB failure must not fail the send
+  Message.query().insert({
     type: 'email',
     destination: to,
     subject,
     content: text ?? html.replace(/<[^>]+>/g, ''),
-  });
-
-  logger.info(`Email sent to ${to}: ${subject}`);
+  }).catch((err) => logger.error('Failed to log sent email to messages table: %o', err));
 }
