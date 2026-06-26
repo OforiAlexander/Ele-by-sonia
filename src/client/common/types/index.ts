@@ -62,13 +62,51 @@ export interface PaginatedSales {
   limit: number;
 }
 
+export interface ProductImage {
+  id: string;
+  image_path: string;
+  sort_order: number;
+}
+
+export interface ProductOptionValue {
+  id: string;
+  option_type_id: string;
+  value: string;
+}
+
+export interface ProductOptionType {
+  id: string;
+  product_id: string;
+  name: string;
+  values: ProductOptionValue[];
+}
+
+export interface StockEntry {
+  id: string;
+  variant_id: string;
+  quantity: number;
+  note: string | null;
+  created_at: string;
+  createdByUser: { id: string; name: string };
+}
+
 export interface Product {
   id: string;
   name: string;
   category: string;
   brand: string | null;
   description: string | null;
+  is_active: boolean;
   created_at: string;
+  variants?: ProductVariant[];
+  images?: ProductImage[];
+}
+
+export interface ProductVariantOptionValue {
+  id: string;
+  option_type_id: string;
+  value: string;
+  optionType?: { id: string; name: string };
 }
 
 export interface ProductVariant {
@@ -81,7 +119,7 @@ export interface ProductVariant {
   low_stock_threshold: number;
   is_active: boolean;
   created_at: string;
-  options?: Array<{ type: string; value: string }>;
+  optionValues?: ProductVariantOptionValue[];
 }
 
 // Cart item held in POS page state (frontend-only, never sent to backend)

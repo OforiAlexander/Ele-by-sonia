@@ -1008,6 +1008,91 @@ curl -s -X DELETE "http://localhost:8000/api/products/$PRODUCT_ID/images/0000000
 
 ---
 
+## Feature 13 — Stock management (UI: VariantsPage)
+
+> These endpoints back the Add Stock modal, Adjust Stock modal, threshold editor, and history drawer on VariantsPage.
+
+### 13.1 Add stock (positive units in)
+
+```bash
+VARIANT_ID="<uuid from GET /api/variants>"
+
+curl -s -X POST http://localhost:8000/api/stock/add \
+  -H "Content-Type: application/json" \
+  -b cookie.txt \
+  -d "{\"variant_id\":\"$VARIANT_ID\",\"quantity\":10,\"note\":\"Opening stock\"}" | jq
+# Expected: 201 { code: "STOCK_ADDED", data: { stock: 10, ... } }
+```
+
+**Missing quantity**
+```bash
+curl -s -X POST http://localhost:8000/api/stock/add \
+  -H "Content-Type: application/json" \
+  -b cookie.txt \
+  -d "{\"variant_id\":\"$VARIANT_ID\"}" | jq
+# Expected: 422
+```
+
+### 13.2 Adjust stock (signed delta, note required)
+
+```bash
+# Deduct 3 units (damaged goods)
+curl -s -X POST http://localhost:8000/api/stock/adjust \
+  -H "Content-Type: application/json" \
+  -b cookie.txt \
+  -d "{\"variant_id\":\"$VARIANT_ID\",\"quantity\":-3,\"note\":\"Damaged in storage\"}" | jq
+# Expected: 201 { code: "STOCK_ADJUSTED", data: { stock: 7, ... } }
+
+# Would make stock negative
+curl -s -X POST http://localhost:8000/api/stock/adjust \
+  -H "Content-Type: application/json" \
+  -b cookie.txt \
+  -d "{\"variant_id\":\"$VARIANT_ID\",\"quantity\":-999,\"note\":\"Too much\"}" | jq
+# Expected: 400 { code: "STOCK_INSUFFICIENT" }
+
+# Missing note
+curl -s -X POST http://localhost:8000/api/stock/adjust \
+  -H "Content-Type: application/json" \
+  -b cookie.txt \
+  -d "{\"variant_id\":\"$VARIANT_ID\",\"quantity\":-1}" | jq
+# Expected: 422
+```
+
+### 13.3 Set low-stock threshold
+
+```bash
+curl -s -X PATCH "http://localhost:8000/api/stock/threshold/$VARIANT_ID" \
+  -H "Content-Type: application/json" \
+  -b cookie.txt \
+  -d '{"low_stock_threshold":5}' | jq
+# Expected: 200 { code: "THRESHOLD_UPDATED", data: { low_stock_threshold: 5, ... } }
+
+# Threshold of 0 is valid (disables alert)
+curl -s -X PATCH "http://localhost:8000/api/stock/threshold/$VARIANT_ID" \
+  -H "Content-Type: application/json" \
+  -b cookie.txt \
+  -d '{"low_stock_threshold":0}' | jq
+# Expected: 200
+
+# Negative threshold rejected
+curl -s -X PATCH "http://localhost:8000/api/stock/threshold/$VARIANT_ID" \
+  -H "Content-Type: application/json" \
+  -b cookie.txt \
+  -d '{"low_stock_threshold":-1}' | jq
+# Expected: 422
+```
+
+### 13.4 Stock history
+
+```bash
+curl -s "http://localhost:8000/api/stock?variantId=$VARIANT_ID" \
+  -b cookie.txt | jq
+# Expected: 200 { data: [ { id, variant_id, quantity, note, created_at, createdByUser: { id, name } }, ... ] }
+# Ordered newest-first. createdByUser must NOT contain password_hash.
+```
+
+---
+
 ## Automated test suite
 
 ```bash

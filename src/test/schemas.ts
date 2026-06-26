@@ -29,9 +29,9 @@ export const productSchema = Yup.object({
   id: Yup.string().uuid().required(),
   name: Yup.string().required(),
   category: Yup.string().required(),
-  // brand/description declared as optional on Product model; absent in JSON when null
   brand: Yup.string().nullable().optional(),
   description: Yup.string().nullable().optional(),
+  is_active: Yup.boolean().required(),
   created_at: Yup.string().required(),
 }).required();
 
@@ -139,8 +139,8 @@ export const chartSchema = Yup.object({
 // ─── Top product item ─────────────────────────────────────────────────────────
 // One element from GET /api/reports/top-products?period=*
 // Hook extracts: item.productName, item.revenue → DashSummary.topItems
+// NOTE: backend returns variantId, NOT productId — no productId field in response
 export const topProductSchema = Yup.object({
-  productId:   Yup.string().uuid().required(),
   variantId:   Yup.string().uuid().required(),
   productName: Yup.string().required(),
   sku:         Yup.string().nullable().optional(),
@@ -158,4 +158,19 @@ export const profitBreakdownItemSchema = Yup.object({
   cost:    Yup.number().required(),
   profit:  Yup.number().required(),
   margin:  Yup.number().required(),
+}).required();
+
+// ─── StockEntry ───────────────────────────────────────────────────────────────
+// One element from GET /api/stock?variantId=*
+// UI reads: quantity, note, createdByUser.name for the stock history list
+export const stockEntrySchema = Yup.object({
+  id:         Yup.string().uuid().required(),
+  variant_id: Yup.string().uuid().required(),
+  quantity:   Yup.number().integer().required(),
+  note:       Yup.string().nullable().optional(),
+  created_at: Yup.string().required(),
+  createdByUser: Yup.object({
+    id:   Yup.string().uuid().required(),
+    name: Yup.string().required(),
+  }).required(),
 }).required();

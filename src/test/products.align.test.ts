@@ -204,3 +204,54 @@ describe('PUT /api/products/:id — accepts the frontend update payload', () => 
         ).resolves.toBeDefined();
     });
 });
+
+// ─── DELETE /api/products/:id — deactivates (not a hard delete) ──────────────
+// IMPORTANT: DELETE does NOT destroy the row. It calls deactivateProduct()
+// which sets is_active = false. The product remains queryable.
+// The UI should display this as "Deactivate" not "Delete".
+
+describe('DELETE /api/products/:id — deactivates product, keeps row', () => {
+    let deactivateTargetId = '';
+
+    beforeAll(async () => {
+        const { user } = await createTestUser({ email: 'deactivate-align@example.com', password: TEST_PASS, is_owner: true });
+        const product = await createTestProduct({ name: 'Deactivate Target' }, user.id);
+        deactivateTargetId = product.id;
+    });
+
+    afterAll(async () => {
+        await cleanupTestProduct(deactivateTargetId).catch(() => undefined);
+        await cleanupUserCascade('deactivate-align@example.com');
+    });
+
+    it('returns 200 and sets is_active to false — product is not deleted', async () => {
+        const { agent } = await loginAgent(app, EMAIL);
+        const res = await agent.delete(`/api/products/${deactivateTargetId}`);
+
+        expect(res.status).toBe(200);
+        // Compile-time: response data must be assignable to Product
+        const product: Product = res.body.data as Product;
+        expect(product.is_active).toBe(false);
+        expect(product.id).toBe(deactivateTargetId);
+    });
+
+    it('deactivated product still appears in GET /api/products list', async () => {
+        const { agent } = await loginAgent(app, EMAIL);
+        const res = await agent.get('/api/products');
+
+        const found = res.body.data.products.find((p: Product) => p.id === deactivateTargetId);
+        expect(found).toBeDefined();
+        expect(found.is_active).toBe(false);
+    });
+
+    it('returns 404 for unknown id', async () => {
+        const { agent } = await loginAgent(app, EMAIL);
+        const res = await agent.delete('/api/products/00000000-0000-0000-0000-000000000000');
+        expect(res.status).toBe(404);
+    });
+
+    it('requires authentication', async () => {
+        const res = await request(app).delete(`/api/products/${deactivateTargetId}`);
+        expect(res.status).toBe(401);
+    });
+});
