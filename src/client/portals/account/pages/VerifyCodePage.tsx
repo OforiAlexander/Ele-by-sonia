@@ -1,118 +1,84 @@
 import React, { useEffect, useState } from 'react';
-import {
-  Box, Paper, Title, Text, TextInput, Button, Stack, Anchor,
-} from '@mantine/core';
-import { Formik, Form, Field, FieldProps } from 'formik';
-import * as Yup from 'yup';
+import { PinInput, Button, Stack, Text, Anchor } from '@mantine/core';
 import { Link } from 'react-router-dom';
-import Swal from 'sweetalert2';
 import api from '@client/common/api';
-
-const schema = Yup.object({
-  code: Yup.string()
-    .matches(/^\d{6}$/, 'Enter the 6-digit code.')
-    .required('Code is required.'),
-});
+import AuthShell from '@client/common/components/AuthShell';
+import { showError } from '@client/common/utils/swal';
+import { t } from '@client/common/translations';
+import { KEYS } from '@client/common/keys';
 
 const VerifyCodePage: React.FC = () => {
   const [identifier, setIdentifier] = useState('');
+  const [code, setCode] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const stored = sessionStorage.getItem('reset_identifier') ?? '';
     if (!stored) {
       window.location.href = '/account/forgot-password';
+      return;
     }
     setIdentifier(stored);
   }, []);
 
-  const handleSubmit = async (
-    values: { code: string },
-    { setSubmitting }: { setSubmitting: (b: boolean) => void },
-  ) => {
+  const submit = async (value: string) => {
+    if (value.length < 6) return;
+    setError('');
+    setLoading(true);
     try {
-      const res = await api.post('/auth/verify-code', { identifier, code: values.code });
-      const { resetToken } = res.data.data;
-      sessionStorage.setItem('reset_token', resetToken);
+      const res = await api.post('/auth/verify-code', { identifier, code: value });
+      sessionStorage.setItem('reset_token', res.data.data.resetToken);
       window.location.href = '/account/set-password';
     } catch (err: any) {
       const msg =
         err.response?.data?.errors?.[0]?.msg ??
         err.response?.data?.message ??
-        'Invalid or expired code. Please try again.';
-      Swal.fire({ icon: 'error', title: 'Verification failed', text: msg, confirmButtonColor: '#50C878' });
+        t(KEYS.auth.verify.errorFallback);
+      setError(msg);
     } finally {
-      setSubmitting(false);
+      setLoading(false);
     }
   };
 
   return (
-    <Box
-      style={{
-        minHeight: '100vh',
-        backgroundColor: '#F5F5F5',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1rem',
-      }}
-    >
-      <Paper
-        shadow="sm"
-        radius="md"
-        p="xl"
-        style={{ width: '100%', maxWidth: 440, backgroundColor: '#FFFFFF' }}
-      >
-        <Stack gap="xs" mb="lg">
-          <Title order={2} style={{ color: '#1a1a1a', fontSize: '1.25rem' }}>
-            Enter your code
-          </Title>
-          <Text c="dimmed" size="sm">
-            We sent a 6-digit code to <strong>{identifier}</strong>. Enter it below.
+    <AuthShell>
+      <p className="auth-eyebrow">{t(KEYS.auth.verify.eyebrow)}</p>
+      <h1 className="auth-title">{t(KEYS.auth.verify.title)}</h1>
+      <p className="auth-subtitle">
+        {t(KEYS.auth.verify.subtitle)} <strong>{identifier}</strong>.
+      </p>
+
+      <Stack gap="md">
+        <PinInput
+          length={6}
+          type="number"
+          value={code}
+          onChange={setCode}
+          onComplete={submit}
+          size="lg"
+          error={!!error}
+          oneTimeCode
+        />
+
+        {error && (
+          <Text size="sm" c="red">
+            {error}
           </Text>
-        </Stack>
+        )}
 
-        <Formik
-          initialValues={{ code: '' }}
-          validationSchema={schema}
-          onSubmit={handleSubmit}
-        >
-          {({ isSubmitting }) => (
-            <Form>
-              <Stack gap="md">
-                <Field name="code">
-                  {({ field, meta }: FieldProps) => (
-                    <TextInput
-                      {...field}
-                      label="6-digit code"
-                      placeholder="000000"
-                      maxLength={6}
-                      inputMode="numeric"
-                      error={meta.touched && meta.error ? meta.error : undefined}
-                      styles={{ input: { backgroundColor: '#F0F0F0', letterSpacing: '0.25em' } }}
-                    />
-                  )}
-                </Field>
+        <Button fullWidth loading={loading} disabled={code.length < 6} mt={4} onClick={() => submit(code)}>
+          {t(KEYS.auth.verify.submit)}
+        </Button>
 
-                <Button
-                  type="submit"
-                  fullWidth
-                  loading={isSubmitting}
-                  style={{ backgroundColor: '#50C878' }}
-                >
-                  Verify Code
-                </Button>
-
-                <Text size="sm" ta="center">
-                  <Anchor component={Link} to="/forgot-password" style={{ color: '#50C878' }}>
-                    Resend code
-                  </Anchor>
-                </Text>
-              </Stack>
-            </Form>
-          )}
-        </Formik>
-      </Paper>
-    </Box>
+        <p className="auth-footer-text">
+          {t(KEYS.auth.verify.footerText)}{' '}
+          <Anchor component={Link} to="/forgot-password">
+            {t(KEYS.auth.verify.footerLink)}
+          </Anchor>
+        </p>
+      </Stack>
+    </AuthShell>
   );
 };
 

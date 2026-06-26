@@ -32,7 +32,22 @@ function sanitiseValue(val: unknown): unknown {
 export function createApp() {
     const app = express();
 
-    app.use(helmet());
+    app.use(
+        helmet({
+            contentSecurityPolicy: {
+                directives: {
+                    defaultSrc: ["'self'"],
+                    scriptSrc: ["'self'", 'https://www.google.com', 'https://www.gstatic.com'],
+                    styleSrc: ["'self'", "'unsafe-inline'"],
+                    imgSrc: ["'self'", 'data:', 'https://www.gstatic.com'],
+                    frameSrc: ["'self'", 'https://www.google.com', 'https://recaptcha.net'],
+                    connectSrc: ["'self'"],
+                    fontSrc: ["'self'"],
+                    objectSrc: ["'none'"],
+                },
+            },
+        })
+    );
     app.use(cors({ origin: BASE_URL, credentials: true }));
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));

@@ -413,6 +413,54 @@ $text-muted:    #8A9890;
   font-size: 12px;
 }
 
+// ── App Loader ────────────────────────────────────────────────────────────────
+
+@keyframes ebs-spin {
+  to { transform: rotate(360deg); }
+}
+
+.app-loader {
+  align-items: center;
+  background: $surface;
+  display: flex;
+  height: 100vh;
+  justify-content: center;
+  left: 0;
+  position: fixed;
+  top: 0;
+  width: 100%;
+  z-index: 9999;
+}
+
+.app-loader-ring-wrap {
+  height: 72px;
+  position: relative;
+  width: 72px;
+}
+
+.app-loader-arc {
+  animation: ebs-spin 0.9s linear infinite;
+  border: 3.5px solid rgba(10, 92, 63, 0.12);
+  border-radius: 50%;
+  border-top-color: $primary;
+  inset: 0;
+  position: absolute;
+}
+
+.app-loader-initials {
+  align-items: center;
+  color: $primary;
+  display: flex;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  inset: 0;
+  justify-content: center;
+  letter-spacing: 0.08em;
+  position: absolute;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .app-loader-arc { animation: none; }
   .reveal { transition: none; opacity: 1; transform: none; }
 }

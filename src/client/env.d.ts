@@ -1,6 +1,26 @@
-declare const process: {
-  env: {
+declare namespace NodeJS {
+  interface ProcessEnv {
     NODE_ENV: string;
     RECAPTCHA_SITE_KEY?: string;
-  };
-};
+  }
+}
+
+declare module '*.css';
+declare module '*.scss';
+declare module '*.sass';
+declare module '*.png' {
+  const src: string;
+  export default src;
+}
+declare module '*.jpg' {
+  const src: string;
+  export default src;
+}
+declare module '*.jpeg' {
+  const src: string;
+  export default src;
+}
+declare module '*.svg' {
+  const src: string;
+  export default src;
+}

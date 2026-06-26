@@ -248,3 +248,23 @@ export async function getChart(period: Period, date?: string, metric = 'revenue'
         values: buckets.map((b) => dataMap.get(b.key) ?? 0),
     };
 }
+
+export async function getStockHealth() {
+    const [row] = await knex('product_variants')
+        .where({ is_active: true })
+        .select(
+            knex.raw('COUNT(*)::int AS total'),
+            knex.raw('COUNT(CASE WHEN stock > low_stock_threshold THEN 1 END)::int AS healthy'),
+            knex.raw('COUNT(CASE WHEN stock > 0 AND stock <= low_stock_threshold THEN 1 END)::int AS low_stock'),
+            knex.raw('COUNT(CASE WHEN stock = 0 THEN 1 END)::int AS out_of_stock'),
+            knex.raw('COALESCE(SUM(stock::decimal * cost_price::decimal), 0) AS inventory_value'),
+        );
+
+    return {
+        total:          row.total,
+        healthy:        row.healthy,
+        lowStock:       row.low_stock,
+        outOfStock:     row.out_of_stock,
+        inventoryValue: Number(row.inventory_value),
+    };
+}

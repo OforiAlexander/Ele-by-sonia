@@ -42,3 +42,10 @@ export async function chartController(req: Request, res: Response, next: NextFun
         res.json({ code: CODES.OK, data });
     } catch (err) { next(err); }
 }
+
+export async function stockHealthController(_req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+        const data = await ReportsService.getStockHealth();
+        res.json({ code: CODES.OK, data });
+    } catch (err) { next(err); }
+}

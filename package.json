@@ -5,8 +5,8 @@
   "scripts": {
     "dev": "concurrently \"yarn dev:server\" \"yarn dev:client\"",
     "dev:server": "nodemon",
-    "dev:client": "concurrently \"webpack --config webpack.account.js --watch\" \"webpack --config webpack.inventory.js --watch\" \"webpack --config webpack.store.js --watch\"",
-    "build": "webpack --config webpack.account.js && webpack --config webpack.inventory.js && webpack --config webpack.store.js",
+    "dev:client": "node scripts/with-env.js concurrently \"webpack --config webpack.account.js --watch\" \"webpack --config webpack.inventory.js --watch\" \"webpack --config webpack.store.js --watch\"",
+    "build": "node scripts/with-env.js webpack --config webpack.account.js && node scripts/with-env.js webpack --config webpack.inventory.js && node scripts/with-env.js webpack --config webpack.store.js",
     "start": "node scripts/with-env.js node -r ts-node/register src/server/app.ts",
     "migrate": "node scripts/with-env.js knex --knexfile knexfile.ts migrate:latest",
     "migrate:rollback": "node scripts/with-env.js knex --knexfile knexfile.ts migrate:rollback",

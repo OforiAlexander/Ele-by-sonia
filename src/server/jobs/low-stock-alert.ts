@@ -31,7 +31,7 @@ export async function runLowStockAlert(): Promise<void> {
     .join('');
 
   const html = `
-    <h2>Low Stock Alert — Elegance by Sconia</h2>
+    <h2>Low Stock Alert Elegance by Sconia</h2>
     <p>The following variants are at or below their low stock threshold:</p>
     <table border="1" cellpadding="6">
       <thead>

@@ -1,14 +1,8 @@
 import { useEffect, useState } from 'react';
 import api from '../api';
+import { DashSummary } from '../types';
 
-export interface DashSummary {
-  totalProducts:  number;
-  totalSales:     number;
-  topSellingItem: string;
-  chart:          { labels: string[]; values: number[] };
-  topItems:       { name: string; revenue: number }[];
-  categories:     { name: string; revenue: number }[];
-}
+export type { DashSummary };
 
 export function useDashboardSummary() {
   const [data, setData]       = useState<DashSummary | null>(null);
