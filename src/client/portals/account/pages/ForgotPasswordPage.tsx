@@ -1,18 +1,21 @@
 import React from 'react';
 import {
-  Box, Paper, Title, Text, TextInput, Button, Stack, Anchor,
+  TextInput, Button, Stack,
 } from '@mantine/core';
 import { Formik, Form, Field, FieldProps } from 'formik';
 import * as Yup from 'yup';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import api from '@client/common/api';
+import AuthLayout, { BackToLoginLink } from '../components/AuthLayout';
 
 const schema = Yup.object({
   identifier: Yup.string().required('Email or phone number is required.'),
 });
 
 const ForgotPasswordPage: React.FC = () => {
+  const navigate = useNavigate();
+
   const handleSubmit = async (
     values: { identifier: string },
     { setSubmitting }: { setSubmitting: (b: boolean) => void },
@@ -26,7 +29,7 @@ const ForgotPasswordPage: React.FC = () => {
         text: 'A 6-digit code has been sent to your email or phone. It expires in 10 minutes.',
         confirmButtonColor: '#50C878',
       });
-      window.location.href = '/account/verify-code';
+      navigate('/verify-code');
     } catch (err: any) {
       const msg =
         err.response?.data?.errors?.[0]?.msg ??
@@ -39,71 +42,42 @@ const ForgotPasswordPage: React.FC = () => {
   };
 
   return (
-    <Box
-      style={{
-        minHeight: '100vh',
-        backgroundColor: '#F5F5F5',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1rem',
-      }}
+    <AuthLayout
+      eyebrow="Password recovery"
+      title="Find your account"
+      subtitle="Enter the email address or phone number attached to your staff profile."
+      activeStep="identify"
+      footer={<BackToLoginLink />}
     >
-      <Paper
-        shadow="sm"
-        radius="md"
-        p="xl"
-        style={{ width: '100%', maxWidth: 440, backgroundColor: '#FFFFFF' }}
+      <Formik
+        initialValues={{ identifier: '' }}
+        validationSchema={schema}
+        onSubmit={handleSubmit}
       >
-        <Stack gap="xs" mb="lg">
-          <Title order={2} style={{ color: '#1a1a1a', fontSize: '1.25rem' }}>
-            Forgot your password?
-          </Title>
-          <Text c="dimmed" size="sm">
-            Enter your email address or phone number and we'll send you a reset code.
-          </Text>
-        </Stack>
+        {({ isSubmitting }) => (
+          <Form className="auth-form">
+            <Stack gap="md">
+              <Field name="identifier">
+                {({ field, meta }: FieldProps) => (
+                  <TextInput
+                    {...field}
+                    className="auth-input"
+                    label="Email or phone number"
+                    placeholder="you@example.com or +233..."
+                    autoComplete="username"
+                    error={meta.touched && meta.error ? meta.error : undefined}
+                  />
+                )}
+              </Field>
 
-        <Formik
-          initialValues={{ identifier: '' }}
-          validationSchema={schema}
-          onSubmit={handleSubmit}
-        >
-          {({ isSubmitting }) => (
-            <Form>
-              <Stack gap="md">
-                <Field name="identifier">
-                  {({ field, meta }: FieldProps) => (
-                    <TextInput
-                      {...field}
-                      label="Email or phone number"
-                      placeholder="e.g. you@example.com or +233..."
-                      error={meta.touched && meta.error ? meta.error : undefined}
-                      styles={{ input: { backgroundColor: '#F0F0F0' } }}
-                    />
-                  )}
-                </Field>
-
-                <Button
-                  type="submit"
-                  fullWidth
-                  loading={isSubmitting}
-                  style={{ backgroundColor: '#50C878' }}
-                >
-                  Send Reset Code
-                </Button>
-
-                <Text size="sm" ta="center">
-                  <Anchor component={Link} to="/login" style={{ color: '#50C878' }}>
-                    Back to sign in
-                  </Anchor>
-                </Text>
-              </Stack>
-            </Form>
-          )}
-        </Formik>
-      </Paper>
-    </Box>
+              <Button type="submit" fullWidth loading={isSubmitting} className="auth-button">
+                Send reset code
+              </Button>
+            </Stack>
+          </Form>
+        )}
+      </Formik>
+    </AuthLayout>
   );
 };
 

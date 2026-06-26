@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Box, Paper, Title, Text, TextInput, Button, Stack, Anchor,
+  Text, TextInput, Button, Stack, Anchor, Group,
 } from '@mantine/core';
 import { Formik, Form, Field, FieldProps } from 'formik';
 import * as Yup from 'yup';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import api from '@client/common/api';
+import AuthLayout, { BackToLoginLink } from '../components/AuthLayout';
 
 const schema = Yup.object({
   code: Yup.string()
@@ -16,14 +17,16 @@ const schema = Yup.object({
 
 const VerifyCodePage: React.FC = () => {
   const [identifier, setIdentifier] = useState('');
+  const navigate = useNavigate();
 
   useEffect(() => {
     const stored = sessionStorage.getItem('reset_identifier') ?? '';
     if (!stored) {
-      window.location.href = '/account/forgot-password';
+      navigate('/forgot-password', { replace: true });
+      return;
     }
     setIdentifier(stored);
-  }, []);
+  }, [navigate]);
 
   const handleSubmit = async (
     values: { code: string },
@@ -33,7 +36,7 @@ const VerifyCodePage: React.FC = () => {
       const res = await api.post('/auth/verify-code', { identifier, code: values.code });
       const { resetToken } = res.data.data;
       sessionStorage.setItem('reset_token', resetToken);
-      window.location.href = '/account/set-password';
+      navigate('/set-password');
     } catch (err: any) {
       const msg =
         err.response?.data?.errors?.[0]?.msg ??
@@ -46,73 +49,59 @@ const VerifyCodePage: React.FC = () => {
   };
 
   return (
-    <Box
-      style={{
-        minHeight: '100vh',
-        backgroundColor: '#F5F5F5',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1rem',
-      }}
+    <AuthLayout
+      eyebrow="Password recovery"
+      title="Enter the reset code"
+      subtitle={(
+        <>
+          We sent a 6-digit code to <strong>{identifier || 'your account'}</strong>. It expires in 10 minutes.
+        </>
+      )}
+      activeStep="verify"
+      footer={(
+        <Group justify="space-between" gap="sm">
+          <Anchor component={Link} to="/forgot-password" className="auth-link" size="sm">
+            Send a new code
+          </Anchor>
+          <BackToLoginLink />
+        </Group>
+      )}
     >
-      <Paper
-        shadow="sm"
-        radius="md"
-        p="xl"
-        style={{ width: '100%', maxWidth: 440, backgroundColor: '#FFFFFF' }}
+      <Formik
+        initialValues={{ code: '' }}
+        validationSchema={schema}
+        onSubmit={handleSubmit}
       >
-        <Stack gap="xs" mb="lg">
-          <Title order={2} style={{ color: '#1a1a1a', fontSize: '1.25rem' }}>
-            Enter your code
-          </Title>
-          <Text c="dimmed" size="sm">
-            We sent a 6-digit code to <strong>{identifier}</strong>. Enter it below.
-          </Text>
-        </Stack>
+        {({ isSubmitting }) => (
+          <Form className="auth-form">
+            <Stack gap="md">
+              <Field name="code">
+                {({ field, meta }: FieldProps) => (
+                  <TextInput
+                    {...field}
+                    className="auth-input auth-code-input"
+                    label="6-digit code"
+                    placeholder="000000"
+                    maxLength={6}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    error={meta.touched && meta.error ? meta.error : undefined}
+                  />
+                )}
+              </Field>
 
-        <Formik
-          initialValues={{ code: '' }}
-          validationSchema={schema}
-          onSubmit={handleSubmit}
-        >
-          {({ isSubmitting }) => (
-            <Form>
-              <Stack gap="md">
-                <Field name="code">
-                  {({ field, meta }: FieldProps) => (
-                    <TextInput
-                      {...field}
-                      label="6-digit code"
-                      placeholder="000000"
-                      maxLength={6}
-                      inputMode="numeric"
-                      error={meta.touched && meta.error ? meta.error : undefined}
-                      styles={{ input: { backgroundColor: '#F0F0F0', letterSpacing: '0.25em' } }}
-                    />
-                  )}
-                </Field>
+              <Text size="sm" className="auth-help">
+                For security, you can request a new code if this one expires or has already been used.
+              </Text>
 
-                <Button
-                  type="submit"
-                  fullWidth
-                  loading={isSubmitting}
-                  style={{ backgroundColor: '#50C878' }}
-                >
-                  Verify Code
-                </Button>
-
-                <Text size="sm" ta="center">
-                  <Anchor component={Link} to="/forgot-password" style={{ color: '#50C878' }}>
-                    Resend code
-                  </Anchor>
-                </Text>
-              </Stack>
-            </Form>
-          )}
-        </Formik>
-      </Paper>
-    </Box>
+              <Button type="submit" fullWidth loading={isSubmitting} className="auth-button">
+                Verify code
+              </Button>
+            </Stack>
+          </Form>
+        )}
+      </Formik>
+    </AuthLayout>
   );
 };
 

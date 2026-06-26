@@ -4,6 +4,7 @@ import { MantineProvider } from '@mantine/core';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import '@mantine/core/styles.css';
 import '@client/common/styles/global.scss';
+import './account.scss';
 import { AuthProvider } from '@client/common/context/AuthContext';
 import LoginPage from './pages/LoginPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';

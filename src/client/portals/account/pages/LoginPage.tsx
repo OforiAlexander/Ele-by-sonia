@@ -1,15 +1,16 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  Box, Paper, Title, Text, TextInput, PasswordInput,
+  Box, Text, TextInput, PasswordInput,
   Button, Anchor, Stack, Group,
 } from '@mantine/core';
 import { Formik, Form, Field, FieldProps } from 'formik';
 import * as Yup from 'yup';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import api from '@client/common/api';
 import { useAuth } from '@client/common/context/AuthContext';
 import RecaptchaWidget from '@client/common/components/RecaptchaWidget';
+import AuthLayout from '../components/AuthLayout';
 
 const RECAPTCHA_SITE_KEY = process.env.RECAPTCHA_SITE_KEY ?? '';
 
@@ -20,7 +21,6 @@ const schema = Yup.object({
 
 const LoginPage: React.FC = () => {
   const { user, loading, setUser } = useAuth();
-  const navigate = useNavigate();
   const [recaptchaToken, setRecaptchaToken] = useState('');
   const [recaptchaError, setRecaptchaError] = useState('');
 
@@ -34,7 +34,7 @@ const LoginPage: React.FC = () => {
     values: { email: string; password: string },
     { setSubmitting }: { setSubmitting: (b: boolean) => void },
   ) => {
-    if (!recaptchaToken) {
+    if (RECAPTCHA_SITE_KEY && !recaptchaToken) {
       setRecaptchaError('Please complete the reCAPTCHA.');
       setSubmitting(false);
       return;
@@ -45,7 +45,7 @@ const LoginPage: React.FC = () => {
       const res = await api.post('/auth/login', {
         email: values.email,
         password: values.password,
-        recaptchaToken,
+        recaptchaToken: RECAPTCHA_SITE_KEY ? recaptchaToken : 'recaptcha-disabled',
       });
       const loggedInUser = res.data.data;
       setUser(loggedInUser);
@@ -62,107 +62,76 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <Box
-      style={{
-        minHeight: '100vh',
-        backgroundColor: '#F5F5F5',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1rem',
-      }}
+    <AuthLayout
+      eyebrow="Secure staff access"
+      title="Sign in to your workspace"
+      subtitle="Use your staff account to manage inventory, sales, reports, and store settings."
     >
-      <Paper
-        shadow="sm"
-        radius="md"
-        p="xl"
-        style={{ width: '100%', maxWidth: 440, backgroundColor: '#FFFFFF' }}
+      <Formik
+        initialValues={{ email: '', password: '' }}
+        validationSchema={schema}
+        onSubmit={handleSubmit}
       >
-        <Stack gap="xs" mb="lg">
-          <Title order={2} style={{ color: '#1a1a1a', fontSize: '1.25rem' }}>
-            Elegance by Sconia
-          </Title>
-          <Text c="dimmed" size="sm">
-            Sign in to your store
-          </Text>
-        </Stack>
-
-        <Formik
-          initialValues={{ email: '', password: '' }}
-          validationSchema={schema}
-          onSubmit={handleSubmit}
-        >
-          {({ isSubmitting }) => (
-            <Form>
-              <Stack gap="md">
-                <Field name="email">
-                  {({ field, meta }: FieldProps) => (
-                    <TextInput
-                      {...field}
-                      label="Email address"
-                      placeholder="Enter email"
-                      type="email"
-                      autoComplete="email"
-                      error={meta.touched && meta.error ? meta.error : undefined}
-                      styles={{ input: { backgroundColor: '#F0F0F0' } }}
-                    />
-                  )}
-                </Field>
-
-                <Field name="password">
-                  {({ field, meta }: FieldProps) => (
-                    <PasswordInput
-                      {...field}
-                      label={
-                        <Group justify="space-between" style={{ width: '100%' }}>
-                          <span>Password</span>
-                          <Anchor
-                            component={Link}
-                            to="/forgot-password"
-                            size="xs"
-                            style={{ color: '#50C878' }}
-                          >
-                            Forgot password?
-                          </Anchor>
-                        </Group>
-                      }
-                      placeholder="Enter password"
-                      autoComplete="current-password"
-                      error={meta.touched && meta.error ? meta.error : undefined}
-                      styles={{ input: { backgroundColor: '#F0F0F0' } }}
-                    />
-                  )}
-                </Field>
-
-                {RECAPTCHA_SITE_KEY && (
-                  <Box>
-                    <RecaptchaWidget
-                      siteKey={RECAPTCHA_SITE_KEY}
-                      onToken={setRecaptchaToken}
-                      onExpired={() => setRecaptchaToken('')}
-                    />
-                    {recaptchaError && (
-                      <Text size="xs" c="red" mt={4}>
-                        {recaptchaError}
-                      </Text>
-                    )}
-                  </Box>
+        {({ isSubmitting }) => (
+          <Form className="auth-form">
+            <Stack gap="md">
+              <Field name="email">
+                {({ field, meta }: FieldProps) => (
+                  <TextInput
+                    {...field}
+                    className="auth-input"
+                    label="Email address"
+                    placeholder="staff@example.com"
+                    type="email"
+                    autoComplete="email"
+                    error={meta.touched && meta.error ? meta.error : undefined}
+                  />
                 )}
+              </Field>
 
-                <Button
-                  type="submit"
-                  fullWidth
-                  loading={isSubmitting}
-                  style={{ backgroundColor: '#50C878', marginTop: '0.5rem' }}
-                >
-                  Sign In
-                </Button>
-              </Stack>
-            </Form>
-          )}
-        </Formik>
-      </Paper>
-    </Box>
+              <Field name="password">
+                {({ field, meta }: FieldProps) => (
+                  <PasswordInput
+                    {...field}
+                    className="auth-input"
+                    label={
+                      <Group justify="space-between" style={{ width: '100%' }} wrap="nowrap">
+                        <span>Password</span>
+                        <Anchor component={Link} to="/forgot-password" size="xs" className="auth-link">
+                          Forgot password?
+                        </Anchor>
+                      </Group>
+                    }
+                    placeholder="Enter your password"
+                    autoComplete="current-password"
+                    error={meta.touched && meta.error ? meta.error : undefined}
+                  />
+                )}
+              </Field>
+
+              {RECAPTCHA_SITE_KEY && (
+                <Box>
+                  <RecaptchaWidget
+                    siteKey={RECAPTCHA_SITE_KEY}
+                    onToken={setRecaptchaToken}
+                    onExpired={() => setRecaptchaToken('')}
+                  />
+                  {recaptchaError && (
+                    <Text size="xs" c="red" mt={4}>
+                      {recaptchaError}
+                    </Text>
+                  )}
+                </Box>
+              )}
+
+              <Button type="submit" fullWidth loading={isSubmitting} className="auth-button">
+                Sign in
+              </Button>
+            </Stack>
+          </Form>
+        )}
+      </Formik>
+    </AuthLayout>
   );
 };
 
