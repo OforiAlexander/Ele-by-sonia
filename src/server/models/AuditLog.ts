@@ -45,6 +45,11 @@ export default class AuditLog extends Model {
   static readonly SALE_VOIDED = 'SALE_VOIDED';
   static readonly DISCOUNT_APPLIED = 'DISCOUNT_APPLIED';
 
+  // Categories
+  static readonly CATEGORY_CREATED = 'CATEGORY_CREATED';
+  static readonly CATEGORY_UPDATED = 'CATEGORY_UPDATED';
+  static readonly CATEGORY_DELETED = 'CATEGORY_DELETED';
+
   // Settings
   static readonly SETTING_UPDATED = 'SETTING_UPDATED';
 

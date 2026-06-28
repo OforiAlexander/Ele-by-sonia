@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { MantineProvider } from '@mantine/core';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import '@mantine/core/styles.css';
+import '@mantine/dates/styles.css';
 import '@fontsource/ibm-plex-sans/400.css';
 import '@fontsource/ibm-plex-sans/500.css';
 import '@fontsource/ibm-plex-sans/600.css';
@@ -13,16 +14,18 @@ import AppLoader from './components/AppLoader';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 
-const DashboardPage     = React.lazy(() => import('./pages/DashboardPage'));
-const ProductsPage      = React.lazy(() => import('./pages/ProductsPage'));
-const PosPage           = React.lazy(() => import('./pages/PosPage'));
-const OrdersPage        = React.lazy(() => import('./pages/OrdersPage'));
-const ReportsPage       = React.lazy(() => import('./pages/ReportsPage'));
-const StaffPage         = React.lazy(() => import('./pages/StaffPage'));
-const SettingsPage      = React.lazy(() => import('./pages/SettingsPage'));
-const DeliveryZonesPage = React.lazy(() => import('./pages/DeliveryZonesPage'));
-const RolesPage         = React.lazy(() => import('./pages/RolesPage'));
-const VariantsPage      = React.lazy(() => import('./pages/VariantsPage'));
+const DashboardPage     = React.lazy(() => import(/* webpackPrefetch: true */ './pages/DashboardPage'));
+const ProductsPage      = React.lazy(() => import(/* webpackPrefetch: true */ './pages/ProductsPage'));
+const CategoriesPage    = React.lazy(() => import(/* webpackPrefetch: true */ './pages/CategoriesPage'));
+const PosPage           = React.lazy(() => import(/* webpackPrefetch: true */ './pages/PosPage'));
+const SalesHistoryPage  = React.lazy(() => import(/* webpackPrefetch: true */ './pages/SalesHistoryPage'));
+const OrdersPage        = React.lazy(() => import(/* webpackPrefetch: true */ './pages/OrdersPage'));
+const ReportsPage       = React.lazy(() => import(/* webpackPrefetch: true */ './pages/ReportsPage'));
+const StaffPage         = React.lazy(() => import(/* webpackPrefetch: true */ './pages/StaffPage'));
+const SettingsPage      = React.lazy(() => import(/* webpackPrefetch: true */ './pages/SettingsPage'));
+const DeliveryZonesPage = React.lazy(() => import(/* webpackPrefetch: true */ './pages/DeliveryZonesPage'));
+const RolesPage         = React.lazy(() => import(/* webpackPrefetch: true */ './pages/RolesPage'));
+const VariantsPage      = React.lazy(() => import(/* webpackPrefetch: true */ './pages/VariantsPage'));
 
 const theme = {
   primaryColor: 'green' as const,
@@ -68,8 +71,10 @@ const App: React.FC = () => (
         <Routes>
           <Route element={<Layout />}>
             <Route index element={<DashboardPage />} />
-            <Route path="products"  element={<ProductsPage />} />
+            <Route path="products"    element={<ProductsPage />} />
+            <Route path="categories"  element={<CategoriesPage />} />
             <Route path="pos"       element={<PosPage />} />
+            <Route path="sales"     element={<SalesHistoryPage />} />
             <Route path="orders"    element={<OrdersPage />} />
             <Route path="reports"   element={<ReportsPage />} />
             <Route path="staff"     element={<StaffPage />} />

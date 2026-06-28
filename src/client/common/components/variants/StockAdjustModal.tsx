@@ -21,9 +21,9 @@ interface Props {
 const schema = Yup.object({
   quantity: Yup.number()
     .integer()
-    .not([0], 'Quantity cannot be zero.')
-    .required('Quantity is required.'),
-  note: Yup.string().required('Note is required for adjustments.'),
+    .not([0], t(KEYS.variants.stock.validation.quantityNonZero))
+    .required(t(KEYS.variants.stock.validation.quantityRequired)),
+  note: Yup.string().required(t(KEYS.variants.stock.validation.noteRequired)),
 });
 
 const initial: StockAdjustValues = { quantity: '', note: '' };
@@ -60,7 +60,7 @@ const StockAdjustModal: React.FC<Props> = ({ opened, variant, onClose, onSubmit 
               {({ field }: FieldProps) => (
                 <NumberInput
                   label={t(KEYS.variants.stock.quantityLabel)}
-                  description="Use a negative value to remove stock (e.g. −3 for damaged goods)."
+                  description={t(KEYS.variants.stock.adjustDesc)}
                   value={field.value}
                   onChange={(v) => setFieldValue('quantity', v)}
                   error={touched.quantity && errors.quantity}

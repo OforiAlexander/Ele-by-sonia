@@ -26,6 +26,7 @@ export interface CurrentUser {
   can_discount_sales?: boolean;
   can_void_sales?: boolean;
   can_return_sales?: boolean;
+  can_override_price?: boolean;
   can_view_staff?: boolean;
   can_create_staff?: boolean;
   can_update_staff?: boolean;
@@ -38,6 +39,15 @@ export interface CurrentUser {
   can_export_reports?: boolean;
   can_view_settings?: boolean;
   can_update_settings?: boolean;
+  can_view_categories?: boolean;
+  can_manage_categories?: boolean;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at?: string;
 }
 
 export interface ApiResponse<T = unknown> {
@@ -122,6 +132,21 @@ export interface ProductVariant {
   optionValues?: ProductVariantOptionValue[];
 }
 
+// Shape returned by GET /api/variants/search — ProductVariant + product_name, used by POS
+export interface SearchVariantResult {
+  id: string;
+  product_id: string;
+  product_name: string;
+  sku: string | null;
+  cost_price: string;
+  selling_price: string;
+  stock: number;
+  low_stock_threshold: number;
+  is_active: boolean;
+  created_at: string;
+  optionValues: ProductVariantOptionValue[];
+}
+
 // Cart item held in POS page state (frontend-only, never sent to backend)
 export interface CartItem {
   variantId: string;
@@ -131,17 +156,54 @@ export interface CartItem {
   quantity: number;
 }
 
+export interface SaleLineItem {
+  id: string;
+  sale_id: string;
+  variant_id: string;
+  quantity: number;
+  unit_price: string;
+  line_total: string;
+  cost_price_snapshot: string;
+  original_price?: string | null;
+  price_override?: string | null;
+  variant?: { id: string; sku: string | null; product_id: string; product_name?: string };
+}
+
 // Shape of a completed sale returned by POST /api/sales and GET /api/sales/:id
 export interface Sale {
   id: string;
   sale_number: string;
-  payment_method: 'cash' | 'momo';
+  payment_method: 'cash' | 'momo' | 'split';
   payment_status: string;
   amount_due: string;
   amount_tendered: string | null;
   change_given: string | null;
   discount: string;
+  levy_amount?: string;
+  voided_at?: string | null;
   created_at: string;
+  items?: SaleLineItem[];
+  staff?: { id: string; name: string };
+}
+
+// POS cart item — frontend-only, never sent to the backend verbatim
+export interface PosCartItem {
+  variantId: string;
+  productName: string;
+  variantLabel: string;
+  sku: string | null;
+  originalPrice: number;
+  price: number;
+  quantity: number;
+  unitPriceOverride: number | null;
+}
+
+// Held sale saved to localStorage
+export interface HeldCart {
+  id: string;
+  label: string;
+  items: PosCartItem[];
+  savedAt: number;
 }
 
 export interface Setting {

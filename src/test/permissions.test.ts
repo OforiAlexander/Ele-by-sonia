@@ -74,12 +74,12 @@ describe('GET /api/permissions', () => {
         expect(all.every((p) => p.enabled !== false)).toBe(true);
     });
 
-    it('total permissions matches 30 seeded definitions', async () => {
+    it('total permissions matches 32 seeded definitions', async () => {
         const session = request.agent(app);
         await session.post('/api/auth/login').send({ email: TEST_EMAIL, password: TEST_PASS, recaptchaToken: 'test' });
 
         const res = await session.get('/api/permissions');
         const total = Object.values(res.body.data as Record<string, any[]>).reduce((n, g) => n + g.length, 0);
-        expect(total).toBe(30);
+        expect(total).toBe(32);
     });
 });

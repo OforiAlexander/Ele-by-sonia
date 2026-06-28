@@ -16,7 +16,7 @@ import { formatCount } from '../../../common/utils/formatCount';
 
 const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
-  const { data, loading }               = useDashboardSummary();
+  const { data, loading, hasError }     = useDashboardSummary();
   const { stockHealth, loading: sLoad } = useStockHealth();
   const [active, setActive]             = useState(false);
   const [range, setRange]               = useState<'7D' | '30D' | '12M'>('12M');
@@ -44,6 +44,10 @@ const DashboardPage: React.FC = () => {
         <h1 className="ptitle">{t(KEYS.dashboard.title)}</h1>
         <p className="psub">{t(KEYS.dashboard.subtitle)}</p>
       </div>
+
+      {hasError && (
+        <Text size="xs" c="orange">{t(KEYS.common.partialDataWarning)}</Text>
+      )}
 
       <Grid gutter={14}>
         <Grid.Col span={2}>

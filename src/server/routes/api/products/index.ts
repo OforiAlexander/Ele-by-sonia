@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { body, query } from 'express-validator';
+import { body, param, query } from 'express-validator';
 import { isLoggedIn } from '../../../middleware/isLoggedIn';
 import { hasPermission } from '../../../middleware/hasPermission';
 import { checkForValidationErrors } from '../../../middleware/validate';
@@ -9,6 +9,7 @@ import {
     getProductController,
     createProductController,
     updateProductController,
+    activateProductController,
     deleteProductController,
     importProductsController,
 } from './products.controller';
@@ -39,12 +40,22 @@ router.get('/',
     hasPermission('can_view_products'),
     query('page').optional().isInt({ min: 1 }).withMessage('page must be a positive integer.').toInt(),
     query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('limit must be between 1 and 100.').toInt(),
+    query('search').optional().isString().trim(),
+    query('category').optional().isString().trim(),
     checkForValidationErrors,
     listProductsController,
 );
-router.get('/:id', isLoggedIn, hasPermission('can_view_products'), getProductController);
-router.post('/', isLoggedIn, hasPermission('can_create_products'), validateProduct, createProductController);
-router.put('/:id', isLoggedIn, hasPermission('can_update_products'), validateProduct, updateProductController);
+
+router.get('/:id',   isLoggedIn, hasPermission('can_view_products'),   getProductController);
+router.post('/',     isLoggedIn, hasPermission('can_create_products'),  uploadProductImages.array('images', 8), validateProduct, createProductController);
+router.put('/:id',   isLoggedIn, hasPermission('can_update_products'),  validateProduct, updateProductController);
+router.patch('/:id/activate',
+    isLoggedIn,
+    hasPermission('can_update_products'),
+    param('id').isUUID().withMessage('Invalid product id.'),
+    checkForValidationErrors,
+    activateProductController,
+);
 router.delete('/:id', isLoggedIn, hasPermission('can_delete_products'), deleteProductController);
 
 router.post('/:id/images',

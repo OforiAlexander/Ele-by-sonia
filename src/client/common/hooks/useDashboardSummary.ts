@@ -4,9 +4,13 @@ import { DashSummary } from '../types';
 
 export type { DashSummary };
 
+interface TopProductRow  { productName: string; revenue: string | number }
+interface CatBreakdownRow { group: string; revenue: string | number }
+
 export function useDashboardSummary() {
-  const [data, setData]       = useState<DashSummary | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData]         = useState<DashSummary | null>(null);
+  const [loading, setLoading]   = useState(true);
+  const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -16,18 +20,23 @@ export function useDashboardSummary() {
       api.get('/reports/chart?period=annual&metric=revenue').catch(() => null),
       api.get('/reports/profit?period=annual&groupBy=category').catch(() => null),
     ]).then(([productsRes, summaryRes, topRes, chartRes, catRes]) => {
+      const partial =
+        !productsRes || !summaryRes || !topRes || !chartRes || !catRes;
+
       const totalProducts  = productsRes?.data?.data?.total ?? 0;
       const totalSales     = summaryRes?.data?.data?.revenue ?? 0;
-      const topData: any[] = topRes?.data?.data ?? [];
-      const topItems       = topData.map((i: any) => ({ name: i.productName, revenue: Number(i.revenue) }));
+      const topData: TopProductRow[]    = topRes?.data?.data ?? [];
+      const topItems       = topData.map((i) => ({ name: i.productName, revenue: Number(i.revenue) }));
       const topSellingItem = topData[0]?.productName ?? '';
       const chart          = chartRes?.data?.data ?? { labels: [], values: [] };
-      const catData: any[] = catRes?.data?.data ?? [];
-      const categories     = catData.slice(0, 4).map((c: any) => ({ name: c.group, revenue: Number(c.revenue) }));
+      const catData: CatBreakdownRow[] = catRes?.data?.data ?? [];
+      const categories     = catData.slice(0, 4).map((c) => ({ name: c.group, revenue: Number(c.revenue) }));
+
+      setHasError(partial);
       setData({ totalProducts, totalSales, topSellingItem, chart, topItems, categories });
       setLoading(false);
     });
   }, []);
 
-  return { data, loading };
+  return { data, loading, hasError };
 }

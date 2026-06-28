@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Table, Badge, ActionIcon, Group, Text, Tooltip, NumberInput } from '@mantine/core';
 import type { ProductVariant } from '../../types';
 import { t } from '../../translations';
@@ -30,6 +30,11 @@ interface ThresholdCellProps {
 const ThresholdCell: React.FC<ThresholdCellProps> = ({ variant, canSet, onSave }) => {
   const [value, setValue]     = React.useState<number>(variant.low_stock_threshold);
   const [saving, setSaving]   = React.useState(false);
+
+  useEffect(() => {
+    setValue(variant.low_stock_threshold);
+  }, [variant.low_stock_threshold]);
+
   const dirty = value !== variant.low_stock_threshold;
 
   const save = async () => {
@@ -161,7 +166,7 @@ const VariantTable: React.FC<Props> = ({
                     </ActionIcon>
                   </Tooltip>
                   {canToggle && (
-                    <Tooltip label={v.is_active ? 'Deactivate' : 'Activate'}>
+                    <Tooltip label={v.is_active ? t(KEYS.variants.tooltip.deactivate) : t(KEYS.variants.tooltip.activate)}>
                       <ActionIcon
                         variant="subtle"
                         color={v.is_active ? 'red' : 'green'}

@@ -17,6 +17,7 @@ export const PERMISSIONS = {
   SALES_DISCOUNT: 'sales.discount',
   SALES_VOID: 'sales.void',
   SALES_RETURN: 'sales.return',
+  SALES_OVERRIDE_PRICE: 'sales.override_price',
   STAFF_VIEW: 'staff.view',
   STAFF_CREATE: 'staff.create',
   STAFF_UPDATE: 'staff.update',
@@ -29,6 +30,8 @@ export const PERMISSIONS = {
   REPORTS_EXPORT: 'reports.export',
   SETTINGS_VIEW: 'settings.view',
   SETTINGS_UPDATE: 'settings.update',
+  CATEGORIES_VIEW: 'categories.view',
+  CATEGORIES_MANAGE: 'categories.manage',
 } as const;
 
 export type PermissionName = typeof PERMISSIONS[keyof typeof PERMISSIONS];
@@ -60,8 +63,9 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { name: PERMISSIONS.SALES_PROCESS,       label: 'Process in-store sales',                 resource: 'sales',    is_sensitive: false },
   { name: PERMISSIONS.SALES_VIEW,          label: 'View sales history',                     resource: 'sales',    is_sensitive: false },
   { name: PERMISSIONS.SALES_DISCOUNT,      label: 'Apply a discount to a sale',             resource: 'sales',    is_sensitive: true  },
-  { name: PERMISSIONS.SALES_VOID,          label: 'Void a completed sale',                  resource: 'sales',    is_sensitive: true  },
-  { name: PERMISSIONS.SALES_RETURN,        label: 'Process a customer return',              resource: 'sales',    is_sensitive: true  },
+  { name: PERMISSIONS.SALES_VOID,           label: 'Void a completed sale',                  resource: 'sales',    is_sensitive: true  },
+  { name: PERMISSIONS.SALES_RETURN,         label: 'Process a customer return',              resource: 'sales',    is_sensitive: true  },
+  { name: PERMISSIONS.SALES_OVERRIDE_PRICE, label: 'Override the selling price on a sale',  resource: 'sales',    is_sensitive: true  },
 
   { name: PERMISSIONS.STAFF_VIEW,          label: 'View the list of staff members',         resource: 'staff',    is_sensitive: false },
   { name: PERMISSIONS.STAFF_CREATE,        label: 'Add a new staff account',                resource: 'staff',    is_sensitive: false },
@@ -76,6 +80,9 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { name: PERMISSIONS.REPORTS_VIEW,        label: 'View financial reports and analytics',   resource: 'reports',  is_sensitive: false },
   { name: PERMISSIONS.REPORTS_EXPORT,      label: 'Export report data to CSV or PDF',       resource: 'reports',  is_sensitive: false },
 
-  { name: PERMISSIONS.SETTINGS_VIEW,       label: 'View business settings',                 resource: 'settings', is_sensitive: false },
-  { name: PERMISSIONS.SETTINGS_UPDATE,     label: 'Change business settings',               resource: 'settings', is_sensitive: true  },
+  { name: PERMISSIONS.SETTINGS_VIEW,        label: 'View business settings',                 resource: 'settings',    is_sensitive: false },
+  { name: PERMISSIONS.SETTINGS_UPDATE,      label: 'Change business settings',               resource: 'settings',    is_sensitive: true  },
+
+  { name: PERMISSIONS.CATEGORIES_VIEW,      label: 'View product categories',                resource: 'categories',  is_sensitive: false },
+  { name: PERMISSIONS.CATEGORIES_MANAGE,    label: 'Create, edit and delete categories',     resource: 'categories',  is_sensitive: false },
 ];

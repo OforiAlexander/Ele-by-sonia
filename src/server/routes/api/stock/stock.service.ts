@@ -31,12 +31,13 @@ export async function addStock(
     note: string | undefined,
     userId: string,
 ): Promise<{ variant: ProductVariant; stockBefore: number }> {
-    const variant = await getVariant(variantId);
-    if (!variant.is_active) throw inactiveVariant();
-
-    const stockBefore = variant.stock;
+    let stockBefore!: number;
 
     await knex.transaction(async (trx) => {
+        const row = await trx('product_variants').where({ id: variantId }).forUpdate().first();
+        if (!row) throw notFound();
+        if (!row.is_active) throw inactiveVariant();
+        stockBefore = Number(row.stock);
         await trx('stock_entries').insert({ variant_id: variantId, quantity, note, created_by: userId });
         await trx('product_variants').where({ id: variantId }).increment('stock', quantity);
     });
@@ -51,19 +52,19 @@ export async function adjustStock(
     note: string,
     userId: string,
 ): Promise<{ variant: ProductVariant; stockBefore: number }> {
-    const variant = await getVariant(variantId);
-    if (!variant.is_active) throw inactiveVariant();
-
-    if (variant.stock + quantity < 0) {
-        throw Object.assign(
-            new Error(`Stock cannot go below zero. Current stock: ${variant.stock}.`),
-            { status: 400, code: 'STOCK_INSUFFICIENT' },
-        );
-    }
-
-    const stockBefore = variant.stock;
+    let stockBefore!: number;
 
     await knex.transaction(async (trx) => {
+        const row = await trx('product_variants').where({ id: variantId }).forUpdate().first();
+        if (!row) throw notFound();
+        if (!row.is_active) throw inactiveVariant();
+        stockBefore = Number(row.stock);
+        if (stockBefore + quantity < 0) {
+            throw Object.assign(
+                new Error(`Stock cannot go below zero. Current stock: ${stockBefore}.`),
+                { status: 400, code: 'STOCK_INSUFFICIENT' },
+            );
+        }
         await trx('stock_entries').insert({ variant_id: variantId, quantity, note, created_by: userId });
         const rows = await trx('product_variants')
             .where({ id: variantId })

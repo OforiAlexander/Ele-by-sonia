@@ -25,7 +25,7 @@ export async function createTestProduct(overrides: Partial<{
 }> = {}, userId: string) {
     const [product] = await knex('products').insert({
         name: overrides.name ?? `Align Product ${Date.now()}`,
-        category: overrides.category ?? 'Test Category',
+        category: overrides.category ?? 'Shoes',
         brand: null,
         description: null,
         created_by: userId,

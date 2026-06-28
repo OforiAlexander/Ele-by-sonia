@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Stack, Group, Button, Text, Center, Loader, Anchor, Grid,
 } from '@mantine/core';
@@ -11,6 +11,7 @@ import VariantFormModal from '../../../common/components/variants/VariantFormMod
 import StockAddModal from '../../../common/components/variants/StockAddModal';
 import StockAdjustModal from '../../../common/components/variants/StockAdjustModal';
 import StockHistoryDrawer from '../../../common/components/variants/StockHistoryDrawer';
+import ProductImageGallery from '../../../common/components/products/ProductImageGallery';
 import { t } from '../../../common/translations';
 import { KEYS } from '../../../common/keys';
 import { showSuccess, showError } from '../../../common/utils/swal';
@@ -33,12 +34,13 @@ const VariantsPage: React.FC = () => {
   const [adjustVariant, setAdjustVariant]     = useState<ProductVariant | null>(null);
   const [historyVariant, setHistoryVariant]   = useState<ProductVariant | null>(null);
 
-  const canCreate     = user?.is_owner || !!user?.can_create_variants;
-  const canEdit       = user?.is_owner || !!user?.can_create_variants;
-  const canAddStock   = user?.is_owner || !!user?.can_add_stock;
-  const canAdjust     = user?.is_owner || !!user?.can_adjust_stock;
-  const canSetThresh  = user?.is_owner || !!user?.can_set_threshold;
-  const canToggle     = user?.is_owner || !!user?.can_update_variants;
+  const canCreate      = user?.is_owner || !!user?.can_create_variants;
+  const canEdit        = user?.is_owner || !!user?.can_update_variants;
+  const canAddStock    = user?.is_owner || !!user?.can_add_stock;
+  const canAdjust      = user?.is_owner || !!user?.can_adjust_stock;
+  const canSetThresh   = user?.is_owner || !!user?.can_set_threshold;
+  const canToggle      = user?.is_owner || !!user?.can_update_variants;
+  const canEditProduct = user?.is_owner || !!user?.can_update_products;
 
   if (!productId) {
     return (
@@ -48,7 +50,7 @@ const VariantsPage: React.FC = () => {
     );
   }
 
-  if (loading) {
+  if (loading && !product) {
     return (
       <Center py="xl">
         <Loader size="sm" />
@@ -109,7 +111,7 @@ const VariantsPage: React.FC = () => {
       const code = err?.response?.data?.code;
       showError(
         t(KEYS.common.error),
-        code === 'STOCK_INSUFFICIENT' ? 'Adjustment would make stock negative.' : t(KEYS.variants.toast.error),
+        code === 'STOCK_INSUFFICIENT' ? t(KEYS.variants.stock.insufficientError) : t(KEYS.variants.toast.error),
       );
     }
   };
@@ -126,14 +128,7 @@ const VariantsPage: React.FC = () => {
 
   const handleToggleActive = async (variant: ProductVariant) => {
     try {
-      const optionValueIds = variant.optionValues?.map((ov) => ov.id) ?? [];
-      const res = await api.put(`/variants/${variant.id}`, {
-        cost_price:          parseFloat(variant.cost_price),
-        selling_price:       parseFloat(variant.selling_price),
-        optionValueIds,
-        low_stock_threshold: variant.low_stock_threshold,
-        is_active:           !variant.is_active,
-      });
+      const res = await api.patch(`/variants/${variant.id}/status`, { is_active: !variant.is_active });
       setVariants((prev) => prev.map((v) => (v.id === variant.id ? res.data.data : v)));
       showSuccess(variant.is_active ? t(KEYS.variants.toast.deactivated) : t(KEYS.variants.toast.activated), '');
     } catch {
@@ -155,6 +150,8 @@ const VariantsPage: React.FC = () => {
         <h1 className="ptitle" style={{ marginTop: 4 }}>{product.name}</h1>
         <p className="psub">{t(KEYS.variants.subtitle)}</p>
       </div>
+
+      <ProductImageGallery product={product} canEdit={canEditProduct} onRefetch={refetch} />
 
       <Grid gutter="md">
         <Grid.Col span={4}>

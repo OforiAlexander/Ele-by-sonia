@@ -19,8 +19,10 @@ interface Props {
 }
 
 const schema = Yup.object({
-  quantity: Yup.number().integer().positive('Quantity must be at least 1.').required('Quantity is required.'),
-  note:     Yup.string(),
+  quantity: Yup.number().integer()
+    .positive(t(KEYS.variants.stock.validation.quantityPositive))
+    .required(t(KEYS.variants.stock.validation.quantityRequired)),
+  note: Yup.string(),
 });
 
 const initial: StockAddValues = { quantity: '', note: '' };

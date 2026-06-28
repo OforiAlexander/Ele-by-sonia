@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { body, query } from 'express-validator';
+import { body, query, param } from 'express-validator';
 import { isLoggedIn } from '../../../middleware/isLoggedIn';
 import { hasPermission } from '../../../middleware/hasPermission';
 import { checkForValidationErrors } from '../../../middleware/validate';
@@ -53,6 +53,7 @@ router.patch(
     '/threshold/:variantId',
     isLoggedIn,
     hasPermission('can_set_threshold'),
+    param('variantId').isUUID().withMessage('variantId must be a valid UUID.'),
     body('low_stock_threshold')
         .isInt({ min: 0 })
         .withMessage('low_stock_threshold must be a non-negative integer.'),

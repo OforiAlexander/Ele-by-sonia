@@ -20,12 +20,14 @@ interface UseProductsReturn extends UseProductsState {
   refetch:     () => void;
 }
 
-const LIMIT = 20;
+const LIMIT        = 20;
+const SEARCH_DELAY = 300;
 
 export function useProducts(): UseProductsReturn {
   const [page, setPage]         = useState(1);
   const [search, setSearch]     = useState('');
   const [category, setCategory] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [state, setState]       = useState<UseProductsState>({
     products: [],
     total:    0,
@@ -38,12 +40,17 @@ export function useProducts(): UseProductsReturn {
   const refetch = useCallback(() => setTick((n) => n + 1), []);
 
   useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), SEARCH_DELAY);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
     let cancelled = false;
     setState((s) => ({ ...s, loading: true, error: null }));
 
     const params: Record<string, string | number> = { page, limit: LIMIT };
-    if (search)   params.search   = search;
-    if (category) params.category = category;
+    if (debouncedSearch) params.search   = debouncedSearch;
+    if (category)        params.category = category;
 
     api
       .get<{ data: PaginatedProducts }>('/products', { params })
@@ -58,7 +65,7 @@ export function useProducts(): UseProductsReturn {
       });
 
     return () => { cancelled = true; };
-  }, [page, search, category, tick]);
+  }, [page, debouncedSearch, category, tick]);
 
   const handleSetSearch = useCallback((s: string) => {
     setSearch(s);

@@ -1,16 +1,14 @@
 import React, { useState } from 'react';
 import {
-  Drawer, Stack, TextInput, Textarea, Button, Group, Select,
-  FileButton, Text, SimpleGrid, Image, ActionIcon, Paper, Tooltip,
+  Modal, Stack, TextInput, Textarea, Button, Group, Select, Text,
 } from '@mantine/core';
 import { Formik, Form, Field, FieldProps } from 'formik';
 import * as Yup from 'yup';
 import type { Product, ProductImage } from '../../types';
 import { t } from '../../translations';
 import { KEYS } from '../../keys';
-import { CATEGORIES } from '../../constants/categories';
-import { showError } from '../../utils/swal';
-import api from '../../api';
+import { useCategories } from '../../hooks/useCategories';
+import ImageUploadField from '../ImageUploadField';
 
 interface ProductFormValues {
   name:        string;
@@ -20,10 +18,10 @@ interface ProductFormValues {
 }
 
 interface Props {
-  opened:    boolean;
-  editing:   Product | null;
-  onClose:   () => void;
-  onSubmit:  (values: ProductFormValues, images: File[]) => Promise<void>;
+  opened:         boolean;
+  editing:        Product | null;
+  onClose:        () => void;
+  onSubmit:       (values: ProductFormValues, images: File[]) => Promise<void>;
   onDeleteImage?: (productId: string, imageId: string) => Promise<void>;
 }
 
@@ -36,11 +34,11 @@ const schema = Yup.object({
 
 const empty: ProductFormValues = { name: '', category: '', brand: '', description: '' };
 
-const CATEGORY_OPTIONS = CATEGORIES.map((c) => ({ value: c, label: c }));
-
 const ProductFormDrawer: React.FC<Props> = ({ opened, editing, onClose, onSubmit, onDeleteImage }) => {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
-  const [deletingId, setDeletingId]     = useState<string | null>(null);
+  const [imageError, setImageError]     = useState<string | null>(null);
+  const { categories, loading: categoriesLoading } = useCategories();
+  const categoryOptions = categories.map((c) => ({ value: c.name, label: c.name }));
 
   const initial: ProductFormValues = editing
     ? {
@@ -51,41 +49,40 @@ const ProductFormDrawer: React.FC<Props> = ({ opened, editing, onClose, onSubmit
       }
     : empty;
 
-  const title      = editing ? t(KEYS.products.drawer.editTitle) : t(KEYS.products.drawer.addTitle);
+  const title       = editing ? t(KEYS.products.drawer.editTitle) : t(KEYS.products.drawer.addTitle);
   const submitLabel = editing ? t(KEYS.products.drawer.submitEdit) : t(KEYS.products.drawer.submitAdd);
   const existingImages: ProductImage[] = editing?.images ?? [];
 
-  const handleDeleteImage = async (imageId: string) => {
+  const handleDeleteExisting = async (imageId: string) => {
     if (!editing || !onDeleteImage) return;
-    setDeletingId(imageId);
-    try {
-      await onDeleteImage(editing.id, imageId);
-    } catch {
-      showError(t(KEYS.common.error), 'Failed to remove image.');
-    } finally {
-      setDeletingId(null);
-    }
+    await onDeleteImage(editing.id, imageId);
   };
 
   const handleClose = () => {
     setPendingFiles([]);
+    setImageError(null);
     onClose();
   };
 
   return (
-    <Drawer
+    <Modal
       opened={opened}
       onClose={handleClose}
       title={title}
-      position="right"
-      size="md"
-      padding="xl"
+      size="lg"
+      centered
     >
       <Formik
         key={editing?.id ?? 'new'}
         initialValues={initial}
         validationSchema={schema}
         onSubmit={async (values, helpers) => {
+          if (!editing && pendingFiles.length === 0) {
+            setImageError(t(KEYS.products.images.required));
+            helpers.setSubmitting(false);
+            return;
+          }
+          setImageError(null);
           await onSubmit(values, pendingFiles);
           setPendingFiles([]);
           helpers.setSubmitting(false);
@@ -109,10 +106,11 @@ const ProductFormDrawer: React.FC<Props> = ({ opened, editing, onClose, onSubmit
               <Select
                 label={t(KEYS.products.drawer.categoryLabel)}
                 placeholder={t(KEYS.products.drawer.categoryPlaceholder)}
-                data={CATEGORY_OPTIONS}
+                data={categoryOptions}
                 value={values.category || null}
                 onChange={(val) => setFieldValue('category', val ?? '')}
                 error={touched.category && errors.category}
+                disabled={categoriesLoading}
                 searchable
                 allowDeselect={false}
                 required
@@ -139,71 +137,19 @@ const ProductFormDrawer: React.FC<Props> = ({ opened, editing, onClose, onSubmit
                 )}
               </Field>
 
-              {existingImages.length > 0 && (
-                <Stack gap={6}>
-                  <Text size="sm" fw={500}>Current images</Text>
-                  <SimpleGrid cols={4} spacing={6}>
-                    {existingImages.map((img) => (
-                      <Paper key={img.id} withBorder radius="sm" style={{ position: 'relative', overflow: 'hidden' }}>
-                        <Image
-                          src={img.image_path}
-                          height={70}
-                          fit="cover"
-                          radius="sm"
-                        />
-                        {onDeleteImage && (
-                          <Tooltip label="Remove">
-                            <ActionIcon
-                              size="xs"
-                              color="red"
-                              variant="filled"
-                              radius="xl"
-                              loading={deletingId === img.id}
-                              onClick={() => handleDeleteImage(img.id)}
-                              style={{ position: 'absolute', top: 4, right: 4 }}
-                            >
-                              ✕
-                            </ActionIcon>
-                          </Tooltip>
-                        )}
-                      </Paper>
-                    ))}
-                  </SimpleGrid>
-                </Stack>
-              )}
-
               <Stack gap={6}>
                 <Text size="sm" fw={500}>
-                  {editing ? 'Add more images' : 'Product images'}
-                  <Text span size="xs" c="dimmed"> (JPEG/PNG, up to 8)</Text>
+                  {t(KEYS.products.images.sectionLabel)}
+                  {!editing && <Text span c="red" ml={4}>*</Text>}
                 </Text>
-                <FileButton
-                  onChange={(files) => setPendingFiles(files)}
-                  accept="image/jpeg,image/png"
-                  multiple
-                >
-                  {(props) => (
-                    <Button {...props} variant="light" color="gray" size="xs">
-                      Choose files
-                    </Button>
-                  )}
-                </FileButton>
-                {pendingFiles.length > 0 && (
-                  <Stack gap={4}>
-                    {pendingFiles.map((f, i) => (
-                      <Group key={i} justify="space-between" gap={4}>
-                        <Text size="xs" c="dimmed" style={{ flex: 1 }} truncate>{f.name}</Text>
-                        <ActionIcon
-                          size="xs"
-                          color="red"
-                          variant="subtle"
-                          onClick={() => setPendingFiles((prev) => prev.filter((_, j) => j !== i))}
-                        >
-                          ✕
-                        </ActionIcon>
-                      </Group>
-                    ))}
-                  </Stack>
+                <ImageUploadField
+                  existingImages={existingImages}
+                  pendingFiles={pendingFiles}
+                  onPendingChange={(files) => { setPendingFiles(files); if (files.length > 0) setImageError(null); }}
+                  onDeleteExisting={onDeleteImage ? handleDeleteExisting : undefined}
+                />
+                {imageError && (
+                  <Text size="xs" c="red">{imageError}</Text>
                 )}
               </Stack>
 
@@ -219,7 +165,7 @@ const ProductFormDrawer: React.FC<Props> = ({ opened, editing, onClose, onSubmit
           </Form>
         )}
       </Formik>
-    </Drawer>
+    </Modal>
   );
 };
 

@@ -11,6 +11,13 @@ const app = createApp();
 
 redisClient.connect().catch((err) => logger.error('Redis connection error:', err));
 
+const r2Public = process.env.R2_PUBLIC_URL;
+if (r2Public) {
+    logger.info(`[S3] R2_PUBLIC_URL: ${r2Public}`);
+} else {
+    logger.warn('[S3] R2_PUBLIC_URL is NOT set — uploads will be stored with the private API endpoint URL and will not load in browsers. Set R2_PUBLIC_URL in nodemon.json and restart.');
+}
+
 runStartupSequence(() => {
     app.listen(PORT, () => {
         logger.info(`Elegance by Sconia server running on http://localhost:${PORT}`);

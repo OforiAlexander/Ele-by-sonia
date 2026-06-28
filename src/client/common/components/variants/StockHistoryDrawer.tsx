@@ -14,14 +14,16 @@ interface Props {
 const StockHistoryDrawer: React.FC<Props> = ({ opened, variant, onClose }) => {
   const [entries, setEntries] = useState<StockEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
 
   useEffect(() => {
     if (!opened || !variant) return;
     setLoading(true);
+    setFetchError(false);
     api
       .get<{ data: StockEntry[] }>('/stock', { params: { variantId: variant.id } })
       .then((res) => setEntries(res.data.data))
-      .catch(() => setEntries([]))
+      .catch(() => { setEntries([]); setFetchError(true); })
       .finally(() => setLoading(false));
   }, [opened, variant?.id]);
 
@@ -44,11 +46,14 @@ const StockHistoryDrawer: React.FC<Props> = ({ opened, variant, onClose }) => {
         </Center>
       )}
 
-      {!loading && entries.length === 0 && (
+      {!loading && fetchError && (
+        <Text size="sm" c="red">{t(KEYS.common.error)}</Text>
+      )}
+      {!loading && !fetchError && entries.length === 0 && (
         <Text size="sm" c="dimmed">{t(KEYS.variants.stock.empty)}</Text>
       )}
 
-      {!loading && entries.length > 0 && (
+      {!loading && !fetchError && entries.length > 0 && (
         <Timeline bulletSize={18} lineWidth={2}>
           {entries.map((entry) => {
             const isAdd = entry.quantity > 0;

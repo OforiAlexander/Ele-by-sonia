@@ -12,6 +12,7 @@ type PermissionFlag = keyof Pick<
   | 'can_view_roles' | 'can_create_roles' | 'can_update_roles' | 'can_delete_roles'
   | 'can_view_reports' | 'can_export_reports'
   | 'can_view_settings' | 'can_update_settings'
+  | 'can_view_categories' | 'can_manage_categories'
 >;
 
 export function hasPermission(flag: PermissionFlag) {

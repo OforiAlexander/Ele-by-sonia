@@ -15,8 +15,8 @@ export default class Product extends BaseModel {
     updated_at?: string;
 
     images?: Array<{ id: string; image_path: string; sort_order: number }>;
-    variants?: unknown[];
-    optionTypes?: unknown[];
+    variants?: Array<{ id: string; product_id: string; cost_price: number; selling_price: number; stock: number; low_stock_threshold: number; sku?: string; is_active: boolean; created_at: string }>;
+    optionTypes?: Array<{ id: string; product_id: string; name: string; created_at: string }>;
 
     static get relationMappings(): ReturnType<RelationMappingsThunk> {
         const ProductImage = require('./ProductImage').default;

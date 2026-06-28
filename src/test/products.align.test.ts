@@ -17,6 +17,11 @@ import {
     connectDb, disconnectDb, TEST_PASS,
 } from './align-helpers';
 
+const FAKE_PNG = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    'base64',
+);
+
 jest.mock('../server/services/recaptcha', () => ({
     verifyRecaptcha: jest.fn().mockResolvedValue(true),
 }));
@@ -145,12 +150,13 @@ describe('POST /api/products — accepts the frontend Formik payload', () => {
         }
     });
 
-    it('accepts {name, category} minimum payload', async () => {
+    it('accepts {name, category} minimum payload with image', async () => {
         const { agent } = await loginAgent(app, EMAIL);
-        const res = await agent.post('/api/products').send({
-            name: 'Align Form Product',
-            category: 'Clothing',
-        });
+        const res = await agent
+            .post('/api/products')
+            .field('name', 'Align Form Product')
+            .field('category', 'Ladies Clothing')
+            .attach('images', FAKE_PNG, { filename: 'test.png', contentType: 'image/png' });
 
         expect(res.status).toBe(201);
         await expect(
@@ -161,12 +167,13 @@ describe('POST /api/products — accepts the frontend Formik payload', () => {
 
     it('accepts optional brand and description fields', async () => {
         const { agent } = await loginAgent(app, EMAIL);
-        const res = await agent.post('/api/products').send({
-            name: 'Align Full Product',
-            category: 'Shoes',
-            brand: 'Elegance',
-            description: 'A test product',
-        });
+        const res = await agent
+            .post('/api/products')
+            .field('name', 'Align Full Product')
+            .field('category', 'Shoes')
+            .field('brand', 'Elegance')
+            .field('description', 'A test product')
+            .attach('images', FAKE_PNG, { filename: 'test.png', contentType: 'image/png' });
 
         expect(res.status).toBe(201);
         const product: Product = res.body.data as Product;
@@ -177,13 +184,22 @@ describe('POST /api/products — accepts the frontend Formik payload', () => {
 
     it('returns 422 when name is missing', async () => {
         const { agent } = await loginAgent(app, EMAIL);
-        const res = await agent.post('/api/products').send({ category: 'Clothing' });
+        const res = await agent.post('/api/products').send({ category: 'Ladies Clothing' });
         expect(res.status).toBe(422);
     });
 
     it('returns 422 when category is missing', async () => {
         const { agent } = await loginAgent(app, EMAIL);
         const res = await agent.post('/api/products').send({ name: 'No Category' });
+        expect(res.status).toBe(422);
+    });
+
+    it('returns 422 when images are missing', async () => {
+        const { agent } = await loginAgent(app, EMAIL);
+        const res = await agent
+            .post('/api/products')
+            .field('name', 'No Image Product')
+            .field('category', 'Shoes');
         expect(res.status).toBe(422);
     });
 });
@@ -195,7 +211,7 @@ describe('PUT /api/products/:id — accepts the frontend update payload', () => 
         const { agent } = await loginAgent(app, EMAIL);
         const res = await agent.put(`/api/products/${productId}`).send({
             name: 'Updated Align Product',
-            category: 'Test Category',
+            category: 'Shoes',
         });
 
         expect(res.status).toBe(200);

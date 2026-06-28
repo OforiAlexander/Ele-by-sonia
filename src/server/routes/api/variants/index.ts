@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { body, query } from 'express-validator';
+import { body, query, param } from 'express-validator';
 import { isLoggedIn } from '../../../middleware/isLoggedIn';
 import { hasPermission } from '../../../middleware/hasPermission';
 import { checkForValidationErrors } from '../../../middleware/validate';
@@ -14,12 +14,14 @@ import {
     createVariantController,
     updateVariantController,
     deleteVariantController,
+    searchVariantsController,
+    setVariantStatusController,
 } from './variants.controller';
 
 const router = Router();
 
 const requireProductId = [
-    query('productId').notEmpty().withMessage('productId query parameter is required.'),
+    query('productId').notEmpty().isUUID().withMessage('productId must be a valid UUID.'),
     checkForValidationErrors,
 ];
 
@@ -45,7 +47,7 @@ router.post(
     '/option-types',
     isLoggedIn,
     hasPermission('can_create_variants'),
-    body('product_id').notEmpty().withMessage('product_id is required.'),
+    body('product_id').notEmpty().isUUID().withMessage('product_id must be a valid UUID.'),
     body('name').notEmpty().withMessage('name is required.'),
     checkForValidationErrors,
     createOptionTypeController,
@@ -74,14 +76,28 @@ router.delete(
     deleteOptionValueController,
 );
 
+router.get(
+    '/search',
+    isLoggedIn,
+    hasPermission('can_view_variants'),
+    query('limit').optional().isInt({ min: 1, max: 50 }).toInt(),
+    checkForValidationErrors,
+    searchVariantsController,
+);
+
+const requireVariantId = [
+    param('id').isUUID().withMessage('id must be a valid UUID.'),
+    checkForValidationErrors,
+];
+
 router.get('/', isLoggedIn, hasPermission('can_view_variants'), requireProductId, listVariantsController);
-router.get('/:id', isLoggedIn, hasPermission('can_view_variants'), getVariantController);
+router.get('/:id', isLoggedIn, hasPermission('can_view_variants'), requireVariantId, getVariantController);
 
 router.post(
     '/',
     isLoggedIn,
     hasPermission('can_create_variants'),
-    body('product_id').notEmpty().withMessage('product_id is required.'),
+    body('product_id').notEmpty().isUUID().withMessage('product_id must be a valid UUID.'),
     validateVariantBody,
     createVariantController,
 );
@@ -91,6 +107,7 @@ router.put(
     isLoggedIn,
     hasPermission('can_update_variants'),
     [
+        param('id').isUUID().withMessage('id must be a valid UUID.'),
         ...validateVariantBody.slice(0, -1),
         body('is_active').optional().isBoolean(),
         checkForValidationErrors,
@@ -98,6 +115,16 @@ router.put(
     updateVariantController,
 );
 
-router.delete('/:id', isLoggedIn, hasPermission('can_delete_variants'), deleteVariantController);
+router.patch(
+    '/:id/status',
+    isLoggedIn,
+    hasPermission('can_update_variants'),
+    param('id').isUUID().withMessage('id must be a valid UUID.'),
+    body('is_active').isBoolean().withMessage('is_active must be a boolean.'),
+    checkForValidationErrors,
+    setVariantStatusController,
+);
+
+router.delete('/:id', isLoggedIn, hasPermission('can_delete_variants'), requireVariantId, deleteVariantController);
 
 export default router;

@@ -17,7 +17,7 @@ export async function addStockController(req: Request, res: Response, next: Next
         await writeAuditLog(req.user!.id, AuditLog.STOCK_ADDED, 'variant', variant_id,
             { stock: stockBefore },
             { stock: variant.stock, quantity_added: quantity, note });
-        res.status(201).json({ code: CODES.STOCK_ADDED, data: variant });
+        res.json({ code: CODES.STOCK_ADDED, data: variant });
     } catch (err) { next(err); }
 }
 
@@ -28,7 +28,7 @@ export async function adjustStockController(req: Request, res: Response, next: N
         await writeAuditLog(req.user!.id, AuditLog.STOCK_ADJUSTED, 'variant', variant_id,
             { stock: stockBefore },
             { stock: variant.stock, quantity_delta: quantity, note });
-        res.status(201).json({ code: CODES.STOCK_ADJUSTED, data: variant });
+        res.json({ code: CODES.STOCK_ADJUSTED, data: variant });
     } catch (err) { next(err); }
 }
 

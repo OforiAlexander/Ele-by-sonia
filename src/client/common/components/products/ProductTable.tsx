@@ -29,7 +29,6 @@ const ProductTable: React.FC<Props> = ({ products, onEdit, onToggleStatus, canUp
       <Table.Thead>
         <Table.Tr>
           <Table.Th>{t(KEYS.products.table.name)}</Table.Th>
-          <Table.Th>{t(KEYS.products.table.category)}</Table.Th>
           <Table.Th>{t(KEYS.products.table.brand)}</Table.Th>
           <Table.Th style={{ width: 90 }}>{t(KEYS.products.table.variants)}</Table.Th>
           <Table.Th style={{ width: 90 }}>{t(KEYS.products.table.status)}</Table.Th>
@@ -40,10 +39,19 @@ const ProductTable: React.FC<Props> = ({ products, onEdit, onToggleStatus, canUp
         {products.map((p) => (
           <Table.Tr key={p.id} style={{ opacity: p.is_active ? 1 : 0.6 }}>
             <Table.Td>
-              <Text fw={500} size="sm">{p.name}</Text>
-            </Table.Td>
-            <Table.Td>
-              <Text size="sm">{p.category}</Text>
+              <Group gap="sm" wrap="nowrap">
+                {p.images?.[0] && (
+                  <img
+                    src={p.images[0].image_path}
+                    alt={p.name}
+                    style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
+                  />
+                )}
+                <div>
+                  <Text fw={500} size="sm" lh={1.3}>{p.name}</Text>
+                  <Text size="xs" c="dimmed" lh={1.3}>{p.category}</Text>
+                </div>
+              </Group>
             </Table.Td>
             <Table.Td>
               <Text size="sm" c="dimmed">{p.brand ?? '—'}</Text>
@@ -73,7 +81,7 @@ const ProductTable: React.FC<Props> = ({ products, onEdit, onToggleStatus, canUp
                   </ActionIcon>
                 </Tooltip>
                 {canUpdate && (
-                  <Tooltip label="Edit">
+                  <Tooltip label={t(KEYS.common.edit)}>
                     <ActionIcon
                       variant="subtle"
                       color="gray"

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import {
-  Stack, Group, Button, TextInput, Pagination, Center, Text,
+  Stack, Group, Button, TextInput, Pagination, Center, Text, Select,
 } from '@mantine/core';
 import { useAuth } from '../../../common/context/AuthContext';
 import { useProducts } from '../../../common/hooks/useProducts';
+import { useCategories } from '../../../common/hooks/useCategories';
 import ProductTable from '../../../common/components/products/ProductTable';
 import ProductFormDrawer from '../../../common/components/products/ProductFormDrawer';
 import { t } from '../../../common/translations';
@@ -16,8 +17,13 @@ const ProductsPage: React.FC = () => {
   const { user } = useAuth();
   const {
     products, total, page, limit, loading,
-    search, setSearch, setPage, refetch,
+    search, category, setSearch, setPage, setCategory, refetch,
   } = useProducts();
+  const { categories } = useCategories();
+  const categoryOptions = [
+    { value: '', label: t(KEYS.products.categoryFilter) },
+    ...categories.map((c) => ({ value: c.name, label: c.name })),
+  ];
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing]       = useState<Product | null>(null);
@@ -54,26 +60,40 @@ const ProductsPage: React.FC = () => {
     values: { name: string; category: string; brand: string; description: string },
     images: File[],
   ) => {
-    const body = {
-      name:        values.name,
-      category:    values.category,
-      brand:       values.brand || undefined,
-      description: values.description || undefined,
-    };
     try {
       if (editing) {
-        await api.put(`/products/${editing.id}`, body);
-        await uploadImages(editing.id, images);
+        await api.put(`/products/${editing.id}`, {
+          name:        values.name,
+          category:    values.category,
+          brand:       values.brand || undefined,
+          description: values.description || undefined,
+        });
+        if (images.length > 0) await uploadImages(editing.id, images);
         showSuccess(t(KEYS.products.toast.updated), '');
       } else {
-        const res = await api.post('/products', body);
-        await uploadImages(res.data.data.id, images);
+        const form = new FormData();
+        form.append('name', values.name);
+        form.append('category', values.category);
+        if (values.brand)       form.append('brand', values.brand);
+        if (values.description) form.append('description', values.description);
+        images.forEach((f) => form.append('images', f));
+        const res = await api.post('/products', form);
+        const newId = res.data.data?.id as string | undefined;
+        if (newId && images.length === 0) {
+          // Images already uploaded as part of the multipart POST — nothing extra to do
+        }
         showSuccess(t(KEYS.products.toast.created), '');
       }
       closeDrawer();
       refetch();
-    } catch {
-      showError(t(KEYS.common.error), editing ? t(KEYS.products.toast.updateError) : t(KEYS.products.toast.createError));
+    } catch (err: unknown) {
+      const isImageError = (err as { config?: { url?: string } })?.config?.url?.includes('/images');
+      showError(
+        t(KEYS.common.error),
+        isImageError
+          ? t(KEYS.products.images.removeError)
+          : editing ? t(KEYS.products.toast.updateError) : t(KEYS.products.toast.createError),
+      );
     }
   };
 
@@ -98,12 +118,7 @@ const ProductsPage: React.FC = () => {
         await api.delete(`/products/${product.id}`);
         showSuccess(t(KEYS.products.toast.deactivated), '');
       } else {
-        await api.put(`/products/${product.id}`, {
-          name:        product.name,
-          category:    product.category,
-          brand:       product.brand ?? undefined,
-          description: product.description ?? undefined,
-        });
+        await api.patch(`/products/${product.id}/activate`);
         showSuccess(t(KEYS.products.toast.activated), '');
       }
       refetch();
@@ -133,7 +148,14 @@ const ProductsPage: React.FC = () => {
           placeholder={t(KEYS.products.searchPlaceholder)}
           value={search}
           onChange={(e) => setSearch(e.currentTarget.value)}
-          style={{ flex: 1, maxWidth: 320 }}
+          style={{ flex: 1, maxWidth: 280 }}
+        />
+        <Select
+          data={categoryOptions}
+          value={category || ''}
+          onChange={(val) => setCategory(val ?? '')}
+          style={{ width: 200 }}
+          allowDeselect={false}
         />
       </Group>
 

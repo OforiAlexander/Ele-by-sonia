@@ -66,7 +66,7 @@ export const settingSchema = Yup.object({
   id: Yup.string().uuid().required(),
   name: Yup.string().required(),
   label: Yup.string().required(),
-  value: Yup.string().required(),
+  value: Yup.string().defined(),
   group: Yup.string().required(),
   editable: Yup.boolean().required(),
 }).required();
@@ -93,6 +93,14 @@ export const paginatedSalesSchema = Yup.object({
   total: Yup.number().required(),
   page: Yup.number().required(),
   limit: Yup.number().required(),
+}).required();
+
+// ─── Category ────────────────────────────────────────────────────────────────
+// Mirrors: src/client/common/types/index.ts → Category
+export const categorySchema = Yup.object({
+  id:         Yup.string().uuid().required(),
+  name:       Yup.string().required(),
+  created_at: Yup.string().required(),
 }).required();
 
 // ─── Role ─────────────────────────────────────────────────────────────────────
@@ -158,6 +166,23 @@ export const profitBreakdownItemSchema = Yup.object({
   cost:    Yup.number().required(),
   profit:  Yup.number().required(),
   margin:  Yup.number().required(),
+}).required();
+
+// ─── SearchVariantResult ─────────────────────────────────────────────────────
+// Mirrors: src/client/common/types/index.ts → SearchVariantResult
+// Returned by GET /api/variants/search — used by POS to look up variants
+export const searchVariantSchema = Yup.object({
+  id:                 Yup.string().uuid().required(),
+  product_id:         Yup.string().uuid().required(),
+  product_name:       Yup.string().required(),
+  sku:                Yup.string().nullable().optional(),
+  cost_price:         Yup.string().required(),
+  selling_price:      Yup.string().required(),
+  stock:              Yup.number().required(),
+  low_stock_threshold: Yup.number().required(),
+  is_active:          Yup.boolean().required(),
+  created_at:         Yup.string().required(),
+  optionValues:       Yup.array().required(),
 }).required();
 
 // ─── StockEntry ───────────────────────────────────────────────────────────────
