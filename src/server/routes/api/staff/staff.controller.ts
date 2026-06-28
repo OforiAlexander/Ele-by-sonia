@@ -48,3 +48,19 @@ export async function toggleDeactivateController(req: Request, res: Response, ne
         res.json({ data: staff });
     } catch (err) { next(err); }
 }
+
+export async function resendInvitationController(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+        const staff = await StaffService.resendInvitation(req.params.id);
+        await writeAuditLog(req.user!.id, AuditLog.INVITATION_RESENT, 'user', (staff as any).id);
+        res.json({ code: CODES.INVITATION_RESENT, data: staff });
+    } catch (err) { next(err); }
+}
+
+export async function cancelInvitationController(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+        await StaffService.cancelInvitation(req.params.id);
+        await writeAuditLog(req.user!.id, AuditLog.INVITATION_CANCELLED, 'user', req.params.id);
+        res.json({ code: CODES.INVITATION_CANCELLED });
+    } catch (err) { next(err); }
+}

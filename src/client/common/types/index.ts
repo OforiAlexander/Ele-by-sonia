@@ -131,3 +131,29 @@ export interface DashSummary {
   topItems:       { name: string; revenue: number }[];
   categories:     { name: string; revenue: number }[];
 }
+
+export interface StaffMember {
+  id:                   string;
+  name:                 string;
+  email:                string;
+  phone:                string | null;
+  is_owner:             boolean;
+  is_active:            boolean;
+  must_change_password: boolean;
+  role_id:              string | null;
+  role?:                { id: string; name: string };
+  created_at:           string;
+}
+
+export interface Permission {
+  id:           string;
+  name:         string;
+  label:        string;
+  is_sensitive: boolean;
+}
+
+export interface Role {
+  id:           string;
+  name:         string;
+  permissions?: Permission[];
+}
