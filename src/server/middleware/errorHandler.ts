@@ -5,6 +5,7 @@ import logger from '../services/logger';
 interface AppError extends Error {
     status?: number;
     code?: string;
+    field?: string;
 }
 
 export function errorHandler(
@@ -23,5 +24,6 @@ export function errorHandler(
     res.status(status).json({
         code,
         message: status >= 500 ? 'An unexpected error occurred. Please try again.' : err.message,
+        ...(err.field ? { field: err.field } : {}),
     });
 }

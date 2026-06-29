@@ -4,6 +4,8 @@ import { paystack, type MomoProvider } from '../../../services/payment/paystack'
 import { ensureLoaded, get } from '../../../startup/settingsCache';
 import { SETTINGS } from '../../../constants/settings';
 import { sendMail } from '../../../services/mail/send-mail';
+import { buildVoidAlertHtml } from '../../../services/mail/templates/void-alert';
+import { notifyOwner, notifySaleParticipants, notifyStockAlertIfNew, NOTIF_TYPES } from '../../../services/notifications/notify';
 import logger from '../../../services/logger';
 
 function withSaleGraph() {
@@ -372,26 +374,59 @@ export async function processSale(
             const ownerEmail         = process.env.OWNER_EMAIL;
             const businessName       = get(SETTINGS.BUSINESS_NAME)?.value ?? 'Elegance by Sconia';
 
-            if (negAlertEnabled || autoDeactivate) {
-                const postSaleVariants = await knex('product_variants as pv')
-                    .join('products as p', 'p.id', 'pv.product_id')
-                    .whereIn('pv.id', items.map((i) => i.variant_id))
-                    .select('pv.id', 'pv.stock', 'pv.is_active', 'p.name as product_name');
+            const postSaleVariants = await knex('product_variants as pv')
+                .join('products as p', 'p.id', 'pv.product_id')
+                .whereIn('pv.id', items.map((i) => i.variant_id))
+                .select('pv.id', 'pv.stock', 'pv.low_stock_threshold', 'pv.is_active', 'p.name as product_name');
 
-                for (const v of postSaleVariants) {
-                    if (Number(v.stock) <= 0) {
-                        if (autoDeactivate && v.is_active) {
-                            await knex('product_variants').where({ id: v.id }).update({ is_active: false });
-                        }
-                        if (negAlertEnabled && ownerEmail) {
-                            sendMail({
-                                to:      ownerEmail,
-                                subject: `Out of Stock — ${v.product_name} [${businessName}]`,
-                                html:    `<p><strong>${v.product_name}</strong> has reached zero stock after sale <strong>${saleId}</strong>. Please restock promptly.</p>`,
-                            }).catch((err) => logger.error('[stock-alert] %s', err.message));
-                        }
+            for (const v of postSaleVariants) {
+                if (Number(v.stock) <= 0) {
+                    if (autoDeactivate && v.is_active) {
+                        await knex('product_variants').where({ id: v.id }).update({ is_active: false });
                     }
+                    if (negAlertEnabled && ownerEmail) {
+                        sendMail({
+                            to:      ownerEmail,
+                            subject: `Out of Stock — ${v.product_name} [${businessName}]`,
+                            html:    `<p><strong>${v.product_name}</strong> has reached zero stock after sale <strong>${saleId}</strong>. Please restock promptly.</p>`,
+                        }).catch((err: any) => logger.error('[stock-alert] %s', err.message));
+                    }
+                    notifyStockAlertIfNew('stock.view', v.id, {
+                        type:  NOTIF_TYPES.OUT_OF_STOCK,
+                        title: `Out of stock: ${v.product_name}`,
+                        data:  { variant_id: v.id },
+                    }).catch((err: any) => logger.error('[notify] out-of-stock: %s', err.message));
+                } else if (Number(v.stock) <= Number(v.low_stock_threshold)) {
+                    notifyStockAlertIfNew('stock.view', v.id, {
+                        type:  NOTIF_TYPES.LOW_STOCK,
+                        title: `Low stock: ${v.product_name} (${v.stock} left)`,
+                        data:  { variant_id: v.id },
+                    }).catch((err: any) => logger.error('[notify] low-stock: %s', err.message));
                 }
+            }
+
+            const hasOverride = items.some((item) => {
+                const variant       = variants.find((v: any) => v.id === item.variant_id);
+                const originalPrice = variant ? Number(variant.selling_price) : 0;
+                const effectivePrice = effectiveUnitPrices.get(item.variant_id) ?? originalPrice;
+                return effectivePrice !== originalPrice;
+            });
+            if (hasOverride) {
+                notifyOwner({
+                    type:  NOTIF_TYPES.PRICE_OVERRIDE,
+                    title: 'Price override used on sale',
+                    body:  `A cashier used a price override on sale (reference: ${saleId}).`,
+                    data:  { sale_id: saleId },
+                }).catch((err: any) => logger.error('[notify] price-override: %s', err.message));
+            }
+
+            if (manualDiscount > 0) {
+                notifyOwner({
+                    type:  NOTIF_TYPES.LARGE_DISCOUNT,
+                    title: 'Manual discount applied',
+                    body:  `A discount of ${manualDiscount.toFixed(2)} was applied to a sale.`,
+                    data:  { sale_id: saleId, discount: manualDiscount },
+                }).catch((err: any) => logger.error('[notify] large-discount: %s', err.message));
             }
 
             if (largeSaleEnabled && largeSaleThreshold > 0 && amountDue >= largeSaleThreshold && ownerEmail) {
@@ -399,7 +434,7 @@ export async function processSale(
                     to:      ownerEmail,
                     subject: `Large Sale Alert — GHS ${amountDue.toFixed(2)} [${businessName}]`,
                     html:    `<p>A large sale of <strong>GHS ${amountDue.toFixed(2)}</strong> was processed (sale ID: ${saleId}). Review it in the dashboard if needed.</p>`,
-                }).catch((err) => logger.error('[large-sale-alert] %s', err.message));
+                }).catch((err: any) => logger.error('[large-sale-alert] %s', err.message));
             }
         } catch (err: any) {
             logger.error('[inventory-intelligence] post-sale check failed: %s', err.message);
@@ -586,30 +621,32 @@ export async function voidSale(id: string, staffId: string): Promise<Sale> {
     const ownerEmail   = process.env.OWNER_EMAIL;
     if (alertEnabled && ownerEmail) {
         const businessName    = get(SETTINGS.BUSINESS_NAME)?.value ?? 'Elegance by Sconia';
+        const logoUrl         = `${process.env.BASE_URL}/images/logo.png`;
+        const currency        = get(SETTINGS.PAYSTACK_CURRENCY)?.value ?? 'GHS';
         const extraRecipients = parseRecipients(get(SETTINGS.VOID_ALERT_RECIPIENTS)?.value ?? '');
-        const saleDate        = new Date(sale.created_at).toLocaleString('en-GH', {
-            timeZone: 'Africa/Accra', day: 'numeric', month: 'short', year: 'numeric',
-            hour: '2-digit', minute: '2-digit',
+        const html = buildVoidAlertHtml({
+            businessName,
+            logoUrl,
+            saleRef:  sale.sale_number,
+            amount:   Number(sale.amount_due),
+            currency,
+            voidedBy: voidedSale.staff?.name ?? '—',
+            voidedAt: new Date(),
         });
-        const html = `
-            <h2 style="color:#c0392b;">Sale Voided — ${businessName}</h2>
-            <p>A sale has been voided. Details below:</p>
-            <table style="border-collapse:collapse;font-family:sans-serif;font-size:14px;">
-              <tr><td style="padding:4px 12px 4px 0;color:#666;">Sale #</td><td style="padding:4px 0;font-weight:600;">${sale.sale_number}</td></tr>
-              <tr><td style="padding:4px 12px 4px 0;color:#666;">Amount</td><td style="padding:4px 0;">GHS ${Number(sale.amount_due).toFixed(2)}</td></tr>
-              <tr><td style="padding:4px 12px 4px 0;color:#666;">Method</td><td style="padding:4px 0;">${sale.payment_method}</td></tr>
-              <tr><td style="padding:4px 12px 4px 0;color:#666;">Original date</td><td style="padding:4px 0;">${saleDate}</td></tr>
-              <tr><td style="padding:4px 12px 4px 0;color:#666;">Voided by</td><td style="padding:4px 0;">${voidedSale.staff?.name ?? '—'}</td></tr>
-            </table>
-            <p style="margin-top:16px;color:#666;">Stock has been reinstated for all items on this sale.</p>
-        `;
         sendMail({
             to:      ownerEmail,
             cc:      extraRecipients || undefined,
             subject: `Sale Voided — ${sale.sale_number}`,
             html,
-        }).catch((err) => logger.error('[void-alert] Failed to send void alert: %s', err.message));
+        }).catch((err: any) => logger.error('[void-alert] Failed to send void alert: %s', err.message));
     }
+
+    notifyOwner({
+        type:  NOTIF_TYPES.SALE_VOIDED,
+        title: `Sale voided: ${sale.sale_number}`,
+        body:  `${voidedSale.staff?.name ?? 'A cashier'} voided sale ${sale.sale_number}.`,
+        data:  { sale_id: id, sale_number: sale.sale_number },
+    }).catch((err: any) => logger.error('[notify] void: %s', err.message));
 
     return voidedSale;
 }
@@ -730,18 +767,38 @@ export async function processSaleReturn(
 }
 
 export async function markSalePaid(paystackReference: string): Promise<void> {
-    await knex('sales')
+    const sale = await knex('sales')
         .where({ paystack_reference: paystackReference, payment_status: Sale.PAYMENT_STATUS_PENDING })
-        .update({ payment_status: Sale.PAYMENT_STATUS_PAID });
+        .select('id', 'sale_number', 'staff_id', 'amount_due')
+        .first();
+
+    if (!sale) return;
+
+    await knex('sales').where({ id: sale.id }).update({ payment_status: Sale.PAYMENT_STATUS_PAID });
+
+    notifySaleParticipants(sale.staff_id, {
+        type:  NOTIF_TYPES.MOMO_CONFIRMED,
+        title: `Momo payment confirmed: ${sale.sale_number}`,
+        body:  `GHS ${Number(sale.amount_due).toFixed(2)} received via Mobile Money.`,
+        data:  { sale_id: sale.id, sale_number: sale.sale_number },
+    }).catch((err: any) => logger.error('[notify] momo-confirmed: %s', err.message));
 }
 
 export async function markSaleFailed(paystackReference: string): Promise<void> {
+    let staffId: string | null = null;
+    let saleNumber: string | null = null;
+    let saleDbId: string | null = null;
+
     await knex.transaction(async (trx) => {
         const sale = await trx('sales')
             .where({ paystack_reference: paystackReference, payment_status: Sale.PAYMENT_STATUS_PENDING })
             .first();
 
         if (!sale) return;
+
+        staffId   = sale.staff_id;
+        saleNumber = sale.sale_number;
+        saleDbId  = sale.id;
 
         const items = await trx('sale_items').where({ sale_id: sale.id });
         for (const item of items) {
@@ -754,4 +811,13 @@ export async function markSaleFailed(paystackReference: string): Promise<void> {
             .where({ id: sale.id })
             .update({ payment_status: Sale.PAYMENT_STATUS_FAILED });
     });
+
+    if (staffId && saleNumber && saleDbId) {
+        notifySaleParticipants(staffId, {
+            type:  NOTIF_TYPES.MOMO_FAILED,
+            title: `Momo payment failed: ${saleNumber}`,
+            body:  'The Mobile Money payment was not successful. Stock has been reinstated.',
+            data:  { sale_id: saleDbId, sale_number: saleNumber },
+        }).catch((err: any) => logger.error('[notify] momo-failed: %s', err.message));
+    }
 }

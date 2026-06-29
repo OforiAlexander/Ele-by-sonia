@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, lazy, Suspense } from 'react';
 import {
   Stack, Group, Button, TextInput, Pagination, Center, Text, Select,
 } from '@mantine/core';
@@ -13,6 +13,8 @@ import { showConfirm, showSuccess, showError } from '../../../common/utils/swal'
 import api from '../../../common/api';
 import type { Product } from '../../../common/types';
 
+const BulkImportModal = lazy(() => import('../../../common/components/products/BulkImportModal'));
+
 const ProductsPage: React.FC = () => {
   const { user } = useAuth();
   const {
@@ -25,8 +27,9 @@ const ProductsPage: React.FC = () => {
     ...categories.map((c) => ({ value: c.name, label: c.name })),
   ];
 
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editing, setEditing]       = useState<Product | null>(null);
+  const [drawerOpen, setDrawerOpen]   = useState(false);
+  const [editing, setEditing]         = useState<Product | null>(null);
+  const [importOpen, setImportOpen]   = useState(false);
 
   const canCreate = user?.is_owner || !!user?.can_create_products;
   const canUpdate = user?.is_owner || !!user?.can_update_products;
@@ -137,9 +140,14 @@ const ProductsPage: React.FC = () => {
           <p className="psub">{t(KEYS.products.subtitle)}</p>
         </div>
         {canCreate && (
-          <Button color="green" onClick={openAdd}>
-            {t(KEYS.products.addBtn)}
-          </Button>
+          <Group gap="xs">
+            <Button variant="outline" color="green" onClick={() => setImportOpen(true)}>
+              {t(KEYS.bulkImport.btnLabel)}
+            </Button>
+            <Button color="green" onClick={openAdd}>
+              {t(KEYS.products.addBtn)}
+            </Button>
+          </Group>
         )}
       </Group>
 
@@ -186,6 +194,14 @@ const ProductsPage: React.FC = () => {
         onSubmit={handleSubmit}
         onDeleteImage={handleDeleteImage}
       />
+
+      <Suspense fallback={null}>
+        <BulkImportModal
+          opened={importOpen}
+          onClose={() => setImportOpen(false)}
+          onSuccess={() => { setImportOpen(false); refetch(); }}
+        />
+      </Suspense>
     </Stack>
   );
 };

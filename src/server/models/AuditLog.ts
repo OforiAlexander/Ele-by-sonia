@@ -20,6 +20,8 @@ export default class AuditLog extends Model {
   static readonly STAFF_UPDATED = 'STAFF_UPDATED';
   static readonly STAFF_DEACTIVATED = 'STAFF_DEACTIVATED';
   static readonly STAFF_REACTIVATED = 'STAFF_REACTIVATED';
+  static readonly INVITATION_RESENT = 'INVITATION_RESENT';
+  static readonly INVITATION_CANCELLED = 'INVITATION_CANCELLED';
 
   // Products
   static readonly PRODUCT_CREATED = 'PRODUCT_CREATED';

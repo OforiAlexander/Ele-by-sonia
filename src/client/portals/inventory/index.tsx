@@ -10,9 +10,9 @@ import '@fontsource/ibm-plex-sans/600.css';
 import '@fontsource/space-grotesk/700.css';
 import '../../common/styles/portal.scss';
 import { AuthProvider, useAuth } from '../../common/context/AuthContext';
-import AppLoader from './components/AppLoader';
-import Sidebar from './components/Sidebar';
-import Topbar from './components/Topbar';
+import AppLoader from '../../common/components/AppLoader';
+import Sidebar from '../../common/components/Sidebar';
+import Topbar from '../../common/components/Topbar';
 
 const DashboardPage     = React.lazy(() => import(/* webpackPrefetch: true */ './pages/DashboardPage'));
 const ProductsPage      = React.lazy(() => import(/* webpackPrefetch: true */ './pages/ProductsPage'));
@@ -24,9 +24,10 @@ const OrdersPage        = React.lazy(() => import(/* webpackPrefetch: true */ '.
 const ReportsPage       = React.lazy(() => import(/* webpackPrefetch: true */ './pages/ReportsPage'));
 const StaffPage         = React.lazy(() => import(/* webpackPrefetch: true */ './pages/StaffPage'));
 const SettingsPage      = React.lazy(() => import(/* webpackPrefetch: true */ './pages/SettingsPage'));
-const DeliveryZonesPage = React.lazy(() => import(/* webpackPrefetch: true */ './pages/DeliveryZonesPage'));
-const RolesPage         = React.lazy(() => import(/* webpackPrefetch: true */ './pages/RolesPage'));
-const VariantsPage      = React.lazy(() => import(/* webpackPrefetch: true */ './pages/VariantsPage'));
+const DeliveryZonesPage        = React.lazy(() => import(/* webpackPrefetch: true */ './pages/DeliveryZonesPage'));
+const RolesPage                = React.lazy(() => import(/* webpackPrefetch: true */ './pages/RolesPage'));
+const VariantsPage             = React.lazy(() => import(/* webpackPrefetch: true */ './pages/VariantsPage'));
+const ForceChangePasswordPage  = React.lazy(() => import('./pages/ForceChangePasswordPage'));
 
 const theme = {
   primaryColor: 'green' as const,
@@ -48,6 +49,14 @@ const Layout: React.FC = () => {
   if (!user) {
     window.location.href = '/account/';
     return null;
+  }
+
+  if (user.must_change_password) {
+    return (
+      <Suspense fallback={<AppLoader />}>
+        <ForceChangePasswordPage />
+      </Suspense>
+    );
   }
 
   return (

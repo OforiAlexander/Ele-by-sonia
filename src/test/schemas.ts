@@ -210,3 +210,32 @@ export const stockEntrySchema = Yup.object({
     name: Yup.string().required(),
   }).required(),
 }).required();
+
+// ─── StaffMember ─────────────────────────────────────────────────────────────
+// Mirrors: src/client/common/types/index.ts → StaffMember
+// Returned by POST /api/staff, GET /api/staff/:id, PUT /api/staff/:id,
+// PATCH /api/staff/:id/deactivate
+// Note: role_id and phone are absent (not null) when unset — BaseModel.$afterFind
+// deletes null-valued keys before serialisation. The role relation object is not
+// included in the schema because Yup validates nested fields even when the parent
+// is .optional() and absent; the TypeScript assignment in each test catches this.
+export const staffMemberSchema = Yup.object({
+  id:                   Yup.string().uuid().required(),
+  name:                 Yup.string().required(),
+  email:                Yup.string().email().required(),
+  phone:                Yup.string().nullable().optional(),
+  is_owner:             Yup.boolean().required(),
+  is_active:            Yup.boolean().required(),
+  must_change_password: Yup.boolean().required(),
+  role_id:              Yup.string().nullable().optional(),
+  created_at:           Yup.string().required(),
+}).required();
+
+// ─── Paginated staff list ─────────────────────────────────────────────────────
+// Mirrors the shape returned by GET /api/staff (inside data)
+export const paginatedStaffSchema = Yup.object({
+  staff: Yup.array().of(staffMemberSchema).required(),
+  total: Yup.number().required(),
+  page:  Yup.number().required(),
+  limit: Yup.number().required(),
+}).required();

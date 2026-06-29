@@ -464,3 +464,282 @@ $text-muted:    #8A9890;
   .app-loader-arc { animation: none; }
   .reveal { transition: none; opacity: 1; transform: none; }
 }
+
+// ── Staff page ────────────────────────────────────────────────────────────────
+
+.staff-page-header {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 22px;
+}
+
+.staff-summary-bar {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.staff-stat {
+  align-items: center;
+  background: #fff;
+  border: 1px solid $border;
+  border-radius: 14px;
+  display: flex;
+  flex: 1;
+  gap: 14px;
+  padding: 16px 20px;
+}
+
+.staff-stat-icon {
+  align-items: center;
+  border-radius: 10px;
+  display: flex;
+  flex-shrink: 0;
+  height: 40px;
+  justify-content: center;
+  width: 40px;
+
+  &--all      { background: #E7F1EC; color: $primary-light; }
+  &--active   { background: #D1FAE5; color: #059669; }
+  &--inactive { background: #F3F4F6; color: #6B7280; }
+}
+
+.staff-stat-value {
+  color: $text-primary;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 3px;
+}
+
+.staff-stat-label {
+  color: $text-muted;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.staff-filter-bar {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.staff-filter-left { flex: 1; max-width: 300px; }
+
+.staff-filter-count {
+  background: rgba(0,0,0,.07);
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 5px;
+  padding: 1px 6px;
+}
+
+.segbtn.active .staff-filter-count { background: rgba(255,255,255,.22); }
+
+.staff-avatar {
+  align-items: center;
+  border-radius: 50%;
+  display: flex;
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 700;
+  height: 36px;
+  justify-content: center;
+  letter-spacing: .03em;
+  width: 36px;
+
+  &--0 { background: #DCF4E8; color: #0A5C3F; }
+  &--1 { background: #DBEAFE; color: #1D4ED8; }
+  &--2 { background: #EDE9FE; color: #6D28D9; }
+  &--3 { background: #FEF3C7; color: #92400E; }
+  &--4 { background: #FCE7F3; color: #9D174D; }
+  &--5 { background: #CCFBF1; color: #0F766E; }
+}
+
+.staff-name-cell { line-height: 1.3; }
+
+.staff-name-text {
+  color: $text-primary;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.staff-email-text {
+  color: $text-muted;
+  font-size: 12px;
+}
+
+.staff-new-badge {
+  background: #FEF3C7;
+  border-radius: 4px;
+  color: #92400E;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  margin-left: 6px;
+  padding: 1px 5px;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.staff-role-badge {
+  background: #F0F3F1;
+  border-radius: 6px;
+  color: #3D5247;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 9px;
+}
+
+.staff-status-cell {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+}
+
+.staff-status-dot {
+  border-radius: 50%;
+  flex-shrink: 0;
+  height: 7px;
+  width: 7px;
+
+  &--active   { background: #10B981; box-shadow: 0 0 0 3px rgba(16,185,129,.15); }
+  &--inactive { background: #D1D5DB; }
+}
+
+.staff-status-text {
+  color: $text-primary;
+  font-size: 13px;
+}
+
+.staff-row--inactive { opacity: .5; }
+
+.staff-add-btn {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+}
+
+.staff-btn-icon {
+  align-items: center;
+  display: flex;
+}
+
+.staff-search-wrap {
+  max-width: 320px;
+  margin-bottom: 16px;
+}
+
+.staff-name-row {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.staff-phone-text {
+  color: $text-primary;
+  font-size: 13px;
+}
+
+.staff-muted-text {
+  color: $text-muted;
+  font-size: 13px;
+}
+
+.staff-empty {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 48px 0;
+}
+
+.staff-empty-text {
+  color: $text-muted;
+  font-size: 14px;
+  margin: 0;
+}
+
+// ── Role form modal ───────────────────────────────────────────────────────────
+
+.role-create-link {
+  background: none;
+  border: none;
+  color: $primary-light;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 500;
+  margin-top: 6px;
+  padding: 0;
+
+  &:hover { text-decoration: underline; }
+}
+
+.role-form-permissions-label {
+  color: $text-muted;
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .03em;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+.role-form-groups {
+  border: 1px solid $border;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.role-form-group {
+  border-bottom: 1px solid $border;
+  display: flex;
+  gap: 14px;
+  padding: 12px 14px;
+
+  &:last-child { border-bottom: none; }
+}
+
+.role-form-group-name {
+  color: $text-muted;
+  flex-shrink: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  min-width: 72px;
+  padding-top: 2px;
+  text-transform: uppercase;
+}
+
+.role-form-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
+.role-form-checkbox-item { align-items: center; display: flex; }
+
+.role-form-checkbox-label {
+  align-items: center;
+  display: flex;
+  font-size: 13px;
+  gap: 6px;
+}
+
+.role-form-sensitive-tag {
+  background: #FEF3C7;
+  border-radius: 4px;
+  color: #92400E;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  padding: 1px 5px;
+  text-transform: uppercase;
+}
+

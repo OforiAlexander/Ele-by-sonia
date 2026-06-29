@@ -12,6 +12,7 @@ import {
     activateProductController,
     deleteProductController,
     importProductsController,
+    downloadTemplateController,
 } from './products.controller';
 import { uploadImagesController, deleteImageController } from './images.controller';
 import { uploadProductImages } from '../../../services/upload';
@@ -27,6 +28,12 @@ const validateProduct = [
     body('description').optional().isString(),
     checkForValidationErrors,
 ];
+
+router.get('/import/template',
+    isLoggedIn,
+    hasPermission('can_create_products'),
+    downloadTemplateController,
+);
 
 router.post('/import',
     isLoggedIn,

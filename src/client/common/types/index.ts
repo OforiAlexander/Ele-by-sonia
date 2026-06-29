@@ -256,3 +256,49 @@ export interface DashSummary {
   topItems:       { name: string; revenue: number }[];
   categories:     { name: string; revenue: number }[];
 }
+
+export interface StaffMember {
+  id:                   string;
+  name:                 string;
+  email:                string;
+  phone:                string | null;
+  is_owner:             boolean;
+  is_active:            boolean;
+  must_change_password: boolean;
+  role_id:              string | null;
+  role?:                { id: string; name: string };
+  created_at:           string;
+}
+
+export interface Permission {
+  id:           string;
+  name:         string;
+  label:        string;
+  is_sensitive: boolean;
+}
+
+export interface Role {
+  id:           string;
+  name:         string;
+  permissions?: Permission[];
+}
+
+export interface AppNotification {
+  id:         string;
+  user_id:    string;
+  type:       string;
+  title:      string;
+  body:       string | null;
+  data:       Record<string, unknown> | null;
+  read_at:    string | null;
+  created_at: string;
+}
+
+export interface ImportResult {
+  productsCreated: number;
+  variantsCreated: number;
+  skipped:         number;
+  errors:          number;
+  errorDetails:    Array<{ row: number; product_name: string; reason: string }>;
+  skippedDetails:  Array<{ row: number; product_name: string; reason: string }>;
+}

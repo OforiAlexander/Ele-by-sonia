@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { CODES } from '../../../codes';
 import * as ProductsService from './products.service';
 import * as ImagesService from './images.service';
-import { importFromCsv } from './csv-import.service';
+import { importFromCsv, buildCsvTemplate } from './csv-import.service';
 import AuditLog from '../../../models/AuditLog';
 import { writeAuditLog } from '../../../services/audit/log';
 
@@ -68,6 +68,14 @@ export async function importProductsController(req: Request, res: Response, next
         }
         const result = await importFromCsv(req.file.buffer, req.user!.id);
         res.json({ code: CODES.IMPORT_COMPLETE, data: result });
+    } catch (err) { next(err); }
+}
+
+export async function downloadTemplateController(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', 'attachment; filename="import_template.csv"');
+        res.send(buildCsvTemplate());
     } catch (err) { next(err); }
 }
 

@@ -63,6 +63,21 @@ export async function cleanupUserCascade(email: string) {
     await knex('users').where({ id: user.id }).delete();
 }
 
+/** Insert a minimal role and return its record. */
+export async function createTestRole(name: string) {
+    const [role] = await knex('roles').insert({ name }).returning('*');
+    return role as { id: string; name: string; created_at: string };
+}
+
+/** Delete all roles whose name matches the given pattern, along with their permissions. */
+export async function cleanupTestRoles(namePattern: string) {
+    const roles = await knex('roles').where('name', 'like', namePattern).select('id');
+    for (const r of roles) {
+        await knex('role_permissions').where({ role_id: r.id }).delete().catch(() => undefined);
+        await knex('roles').where({ id: r.id }).delete().catch(() => undefined);
+    }
+}
+
 export async function connectDb() {
     await redisClient.connect().catch(() => undefined);
 }

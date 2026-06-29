@@ -14,6 +14,7 @@ import storeRoutes from './store';
 import ordersRoutes from './orders';
 import paymentsRoutes from './payments';
 import categoriesRoutes from './categories';
+import notificationsRoutes from './notifications';
 
 const router = Router();
 
@@ -32,5 +33,6 @@ router.use('/store', storeRoutes);
 router.use('/orders', ordersRoutes);
 router.use('/payments', paymentsRoutes);
 router.use('/categories', categoriesRoutes);
+router.use('/notifications', notificationsRoutes);
 
 export default router;

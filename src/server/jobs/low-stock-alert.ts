@@ -2,6 +2,8 @@ import ProductVariant from '../models/ProductVariant';
 import { ensureLoaded, get } from '../startup/settingsCache';
 import { SETTINGS } from '../constants/settings';
 import { sendMail } from '../services/mail/send-mail';
+import { buildLowStockAlertHtml } from '../services/mail/templates/low-stock-alert';
+import { notifyStockAlertIfNew, NOTIF_TYPES } from '../services/notifications/notify';
 import logger from '../services/logger';
 
 function parseRecipients(raw: string): string {
@@ -25,6 +27,7 @@ export async function runLowStockAlert(): Promise<void> {
     }
 
     const businessName = get(SETTINGS.BUSINESS_NAME)?.value ?? 'Elegance by Sconia';
+    const logoUrl      = `${process.env.BASE_URL}/images/logo.png`;
     const extraRecipients = parseRecipients(get(SETTINGS.LOW_STOCK_ALERT_RECIPIENTS)?.value ?? '');
 
     const lowVariants = await ProductVariant.query()
@@ -34,34 +37,15 @@ export async function runLowStockAlert(): Promise<void> {
 
     if (lowVariants.length === 0) return;
 
-    const rows = lowVariants
-        .map((v: any) => {
-            const productName = v.product?.name ?? 'Unknown Product';
-            return `<tr>
-        <td style="padding:6px 10px;border:1px solid #ddd;">${productName}</td>
-        <td style="padding:6px 10px;border:1px solid #ddd;">${v.sku ?? '—'}</td>
-        <td style="padding:6px 10px;border:1px solid #ddd;">${v.stock}</td>
-        <td style="padding:6px 10px;border:1px solid #ddd;">${v.low_stock_threshold}</td>
-      </tr>`;
-        })
-        .join('');
+    const items = lowVariants.map((v: any) => ({
+        product_name: v.product?.name ?? 'Unknown Product',
+        sku:          v.sku ?? null,
+        stock:        Number(v.stock),
+        threshold:    Number(v.low_stock_threshold),
+        is_out:       Number(v.stock) <= 0,
+    }));
 
-    const html = `
-    <h2 style="color:#1a1a1a;">Low Stock Alert — ${businessName}</h2>
-    <p>The following variants are at or below their low-stock threshold and need restocking:</p>
-    <table style="border-collapse:collapse;width:100%;font-family:sans-serif;font-size:14px;">
-      <thead>
-        <tr style="background:#f5f5f5;">
-          <th style="padding:6px 10px;border:1px solid #ddd;text-align:left;">Product</th>
-          <th style="padding:6px 10px;border:1px solid #ddd;text-align:left;">SKU</th>
-          <th style="padding:6px 10px;border:1px solid #ddd;text-align:left;">Stock</th>
-          <th style="padding:6px 10px;border:1px solid #ddd;text-align:left;">Threshold</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <p style="margin-top:16px;color:#666;">Please restock soon to avoid selling out.</p>
-  `;
+    const html = buildLowStockAlertHtml({ businessName, logoUrl, items, generatedAt: new Date() });
 
     await sendMail({
         to:      ownerEmail,
@@ -69,6 +53,17 @@ export async function runLowStockAlert(): Promise<void> {
         subject: `Low Stock Alert — ${lowVariants.length} variant(s) need restocking`,
         html,
     });
+
+    for (const v of lowVariants as any[]) {
+        const isOut = Number(v.stock) <= 0;
+        const type  = isOut ? NOTIF_TYPES.OUT_OF_STOCK : NOTIF_TYPES.LOW_STOCK;
+        const title = isOut
+            ? `Out of stock: ${v.product?.name ?? 'Unknown'}`
+            : `Low stock: ${v.product?.name ?? 'Unknown'} (${v.stock} left)`;
+        await notifyStockAlertIfNew('stock.view', v.id, { type, title, data: { variant_id: v.id } }).catch(
+            (err: any) => logger.error('[low-stock] notify failed for variant %s: %s', v.id, err.message),
+        );
+    }
 
     logger.info('[low-stock] Alert sent to %s for %d variant(s)', ownerEmail, lowVariants.length);
 }

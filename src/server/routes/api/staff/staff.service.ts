@@ -2,6 +2,9 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import User from '../../../models/User';
 import { sendMail } from '../../../services/mail/send-mail';
+import { buildStaffInviteHtml } from '../../../services/mail/templates/staff-invite';
+import { buildStaffCancelledHtml } from '../../../services/mail/templates/staff-cancelled';
+import { notifyOwner, NOTIF_TYPES } from '../../../services/notifications/notify';
 import logger from '../../../services/logger';
 
 const SENSITIVE = ['password_hash', 'otp_code', 'otp_expires_at', 'otp_attempts', 'reset_token', 'reset_token_expires_at'];
@@ -18,6 +21,18 @@ function baseQuery() {
         .withGraphFetched('role')
         .modifyGraph('role', (b) => b.select('roles.id', 'roles.name'))
         .orderBy('name');
+}
+
+function getLogoUrl(): string {
+    return `${process.env.BASE_URL}/images/logo.png`;
+}
+
+function getLoginUrl(): string {
+    return `${process.env.BASE_URL}/account/`;
+}
+
+function getBusinessName(): string {
+    return process.env.BUSINESS_NAME ?? 'Elegance by Sconia';
 }
 
 export async function listStaff(
@@ -47,10 +62,15 @@ export async function createStaff(
     name: string,
     email: string,
     phone: string | undefined,
-    roleId: string | undefined,
+    roleId: string,
 ): Promise<ReturnType<typeof strip>> {
     const existing = await User.query().findOne({ email: email.toLowerCase() });
-    if (existing) throw Object.assign(new Error('A user with that email already exists.'), { status: 409, code: 'CONFLICT' });
+    if (existing) throw Object.assign(new Error('A user with that email already exists.'), { status: 409, code: 'CONFLICT', field: 'email' });
+
+    if (phone) {
+        const existingPhone = await User.query().findOne({ phone });
+        if (existingPhone) throw Object.assign(new Error('A user with that phone number already exists.'), { status: 409, code: 'CONFLICT', field: 'phone' });
+    }
 
     const tempPassword = crypto.randomBytes(8).toString('hex');
     const hash = await bcrypt.hash(tempPassword, 12);
@@ -67,11 +87,27 @@ export async function createStaff(
         otp_attempts: 0,
     });
 
+    const businessName = getBusinessName();
     sendMail({
         to: user.email,
-        subject: 'Welcome to Elegance by Sconia',
-        html: `<p>Hi ${user.name},</p><p>Your account has been created. Your temporary password is: <strong>${tempPassword}</strong></p><p>Please log in and change your password immediately.</p>`,
+        subject: `Welcome to ${businessName} — Your account is ready`,
+        html: buildStaffInviteHtml({
+            name: user.name,
+            email: user.email,
+            tempPassword,
+            businessName,
+            loginUrl: getLoginUrl(),
+            logoUrl: getLogoUrl(),
+            isResend: false,
+        }),
     }).catch((err) => logger.error('Welcome email failed for %s: %o', user.email, err));
+
+    notifyOwner({
+        type:  NOTIF_TYPES.STAFF_INVITED,
+        title: `New staff invited: ${user.name}`,
+        body:  `${user.name} (${user.email}) was added as staff.`,
+        data:  { user_id: user.id },
+    }).catch((err: any) => logger.error('[notify] staff-invited: %s', err.message));
 
     return strip(user);
 }
@@ -80,18 +116,70 @@ export async function updateStaff(
     id: string,
     name: string,
     phone: string | undefined,
-    roleId: string | null | undefined,
+    roleId: string,
 ): Promise<ReturnType<typeof strip>> {
     const user = await User.query().findById(id).where({ is_owner: false });
     if (!user) throw Object.assign(new Error('Staff member not found.'), { status: 404, code: 'NOT_FOUND' });
 
+    if (phone) {
+        const existingPhone = await User.query().findOne({ phone }).whereNot('id', id);
+        if (existingPhone) throw Object.assign(new Error('A user with that phone number already exists.'), { status: 409, code: 'CONFLICT', field: 'phone' });
+    }
+
     const updated = await User.query().patchAndFetchById(id, {
         name,
         phone: phone ?? user.phone,
-        role_id: roleId !== undefined ? (roleId as any) : user.role_id,
+        role_id: roleId as any,
     });
 
     return strip(updated!);
+}
+
+export async function resendInvitation(id: string): Promise<ReturnType<typeof strip>> {
+    const user = await User.query().findById(id).where({ is_owner: false });
+    if (!user) throw Object.assign(new Error('Staff member not found.'), { status: 404, code: 'NOT_FOUND' });
+    if (!user.must_change_password) throw Object.assign(new Error('Invitation already accepted.'), { status: 409, code: 'CONFLICT' });
+
+    const tempPassword = crypto.randomBytes(8).toString('hex');
+    const hash = await bcrypt.hash(tempPassword, 12);
+
+    const updated = await User.query().patchAndFetchById(id, { password_hash: hash, must_change_password: true });
+
+    const businessName = getBusinessName();
+    sendMail({
+        to: user.email,
+        subject: `${businessName} — New login credentials`,
+        html: buildStaffInviteHtml({
+            name: user.name,
+            email: user.email,
+            tempPassword,
+            businessName,
+            loginUrl: getLoginUrl(),
+            logoUrl: getLogoUrl(),
+            isResend: true,
+        }),
+    }).catch((err) => logger.error('Resend invitation email failed for %s: %o', user.email, err));
+
+    return strip(updated!);
+}
+
+export async function cancelInvitation(id: string): Promise<void> {
+    const user = await User.query().findById(id).where({ is_owner: false });
+    if (!user) throw Object.assign(new Error('Staff member not found.'), { status: 404, code: 'NOT_FOUND' });
+    if (!user.must_change_password) throw Object.assign(new Error('Cannot cancel — invitation already accepted.'), { status: 409, code: 'CONFLICT' });
+
+    const businessName = getBusinessName();
+    sendMail({
+        to: user.email,
+        subject: `${businessName} — Invitation cancelled`,
+        html: buildStaffCancelledHtml({
+            name: user.name,
+            businessName,
+            logoUrl: getLogoUrl(),
+        }),
+    }).catch((err) => logger.error('Cancellation email failed for %s: %o', user.email, err));
+
+    await User.query().deleteById(id);
 }
 
 export async function toggleDeactivate(id: string): Promise<ReturnType<typeof strip>> {
@@ -100,5 +188,13 @@ export async function toggleDeactivate(id: string): Promise<ReturnType<typeof st
     if (user.is_owner) throw Object.assign(new Error('Cannot change the status of the owner account.'), { status: 400, code: 'FORBIDDEN' });
 
     const updated = await User.query().patchAndFetchById(id, { is_active: !user.is_active });
+
+    const nowActive = !user.is_active;
+    notifyOwner({
+        type:  nowActive ? NOTIF_TYPES.STAFF_REACTIVATED : NOTIF_TYPES.STAFF_DEACTIVATED,
+        title: nowActive ? `Staff reactivated: ${user.name}` : `Staff deactivated: ${user.name}`,
+        data:  { user_id: user.id },
+    }).catch((err: any) => logger.error('[notify] staff-toggle: %s', err.message));
+
     return strip(updated!);
 }

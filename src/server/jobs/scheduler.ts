@@ -7,6 +7,8 @@ import { runEodReconciliation, runWeeklyReconciliation } from './eodReconciliati
 import { runDailyOpeningEmail } from './dailyOpeningEmail';
 import { runMonthlyReport } from './monthlyReport';
 import { runStockCountReminder } from './stockCountReminder';
+import { runCleanupNotifications } from './cleanup-notifications';
+import { runMissingImagesReminder } from './missing-images-reminder';
 import logger from '../services/logger';
 
 const DAY_NAMES: Record<string, number> = {
@@ -75,6 +77,16 @@ export async function registerJobs(): Promise<void> {
     // Runs daily; job itself gates on the configured interval
     schedule.scheduleJob('0 8 * * *', async () => {
         await runStockCountReminder().catch((err) => logger.error('Stock count reminder failed:', err));
+    });
+
+    // Midnight: purge notifications older than 7 days
+    schedule.scheduleJob('0 0 * * *', async () => {
+        await runCleanupNotifications().catch((err) => logger.error('Notification cleanup failed:', err));
+    });
+
+    // Saturday 09:00: remind owner about products missing images
+    schedule.scheduleJob('0 9 * * 6', async () => {
+        await runMissingImagesReminder().catch((err) => logger.error('Missing images reminder failed:', err));
     });
 
     logger.info(
