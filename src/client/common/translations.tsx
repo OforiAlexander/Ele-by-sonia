@@ -1,7 +1,6 @@
 import { KEYS } from './keys';
 
 const translations: Record<string, string> = {
-  // ── Dashboard ─────────────────────────────────────────────────────────────
   [KEYS.dashboard.title]:                 'Dashboard',
   [KEYS.dashboard.subtitle]:              'Key trends and business insights.',
   [KEYS.dashboard.kpi.totalProducts]:     'Total Products',
@@ -26,7 +25,6 @@ const translations: Record<string, string> = {
   [KEYS.dashboard.categories.title]:      'Purchases by Category',
   [KEYS.dashboard.categories.empty]:      'No category data yet.',
 
-  // ── Navigation ────────────────────────────────────────────────────────────
   [KEYS.nav.dashboard]:  'Dashboard',
   [KEYS.nav.inventory]:  'Inventory',
   [KEYS.nav.categories]: 'Categories',
@@ -41,7 +39,6 @@ const translations: Record<string, string> = {
   [KEYS.nav.logoutConfirmTitle]: 'Log out?',
   [KEYS.nav.logoutConfirmText]:  'You will need to sign in again to access the system.',
 
-  // ── Common ────────────────────────────────────────────────────────────────
   [KEYS.common.loading]:            'Loading…',
   [KEYS.common.loadingDashboard]:   'Loading dashboard…',
   [KEYS.common.noData]:             '—',
@@ -56,7 +53,6 @@ const translations: Record<string, string> = {
   [KEYS.common.method.cash]:        'Cash',
   [KEYS.common.method.momo]:        'Mobile Money',
 
-  // ── Staff ─────────────────────────────────────────────────────────────────
   [KEYS.staff.title]:    'Staff',
   [KEYS.staff.subtitle]: 'Manage staff accounts and access.',
   [KEYS.staff.addStaff]: 'Add staff',
@@ -131,7 +127,6 @@ const translations: Record<string, string> = {
   [KEYS.staff.form.validation.phoneDuplicate]: 'This phone number is already in use.',
   [KEYS.staff.form.validation.roleRequired]:   'Please assign a role.',
 
-  // ── Roles ─────────────────────────────────────────────────────────────────
   [KEYS.roles.createNew]:              '+ Create new role',
   [KEYS.roles.form.title]:             'Create role',
   [KEYS.roles.form.name]:              'Role name',
@@ -143,7 +138,6 @@ const translations: Record<string, string> = {
   [KEYS.roles.errorCreateTitle]:       'Could not create role',
   [KEYS.roles.errorCreateFallback]:    'Something went wrong. Please try again.',
 
-  // ── Force change password ────────────────────────────────────────────────
   [KEYS.forceChangePassword.title]:              'Set your password',
   [KEYS.forceChangePassword.subtitle]:           'Your account was created with a temporary password. You must set a permanent password before you can continue.',
   [KEYS.forceChangePassword.currentLabel]:       'Temporary password',
@@ -161,7 +155,6 @@ const translations: Record<string, string> = {
   [KEYS.forceChangePassword.validation.newMin]:          'New password must be at least 8 characters.',
   [KEYS.forceChangePassword.validation.confirmMismatch]: 'Passwords do not match.',
 
-  // ── Auth brand panel ──────────────────────────────────────────────────────
   [KEYS.auth.brand.headline]:       'Run your boutique.',
   [KEYS.auth.brand.headlineAccent]: 'Know your stock.',
   [KEYS.auth.brand.sub]:            'The complete inventory and POS system built for fashion retail in Ghana.',
@@ -171,7 +164,6 @@ const translations: Record<string, string> = {
   [KEYS.auth.brand.quote]:          '“Designed for fashion retail in Ghana, built for the way you actually work.”',
   [KEYS.auth.brand.quoteAttr]:      'Elegance by Sconia',
 
-  // ── Login page ────────────────────────────────────────────────────────────
   [KEYS.auth.login.eyebrow]:             'Welcome back',
   [KEYS.auth.login.title]:               'Sign in',
   [KEYS.auth.login.subtitle]:            'Enter your details to access the portal.',
@@ -185,7 +177,6 @@ const translations: Record<string, string> = {
   [KEYS.auth.login.errorTitle]:          'Sign in failed',
   [KEYS.auth.login.errorFallback]:       'Login failed. Check your credentials and try again.',
 
-  // ── Forgot password page ──────────────────────────────────────────────────
   [KEYS.auth.forgot.eyebrow]:       'Account access',
   [KEYS.auth.forgot.title]:         'Reset your password',
   [KEYS.auth.forgot.subtitle]:      "Enter your email or phone number and we’ll send you a reset code.",
@@ -199,7 +190,6 @@ const translations: Record<string, string> = {
   [KEYS.auth.forgot.errorTitle]:    'Error',
   [KEYS.auth.forgot.errorFallback]: 'Something went wrong. Please try again.',
 
-  // ── Verify code page ──────────────────────────────────────────────────────
   [KEYS.auth.verify.eyebrow]:       'Verification',
   [KEYS.auth.verify.title]:         'Enter your code',
   [KEYS.auth.verify.subtitle]:      'We sent a 6-digit code to',
@@ -208,7 +198,6 @@ const translations: Record<string, string> = {
   [KEYS.auth.verify.footerLink]:    'Resend',
   [KEYS.auth.verify.errorFallback]: 'Invalid or expired code. Please try again.',
 
-  // ── Set password page ─────────────────────────────────────────────────────
   [KEYS.auth.setPassword.eyebrow]:            'Almost done',
   [KEYS.auth.setPassword.title]:              'Create a new password',
   [KEYS.auth.setPassword.subtitle]:           'Choose something strong — at least 8 characters.',
@@ -222,7 +211,6 @@ const translations: Record<string, string> = {
   [KEYS.auth.setPassword.errorTitle]:         'Error',
   [KEYS.auth.setPassword.errorFallback]:      'Could not update password. The reset link may have expired.',
 
-  // ── Validation messages ───────────────────────────────────────────────────
   [KEYS.auth.validation.emailInvalid]:       'Enter a valid email address.',
   [KEYS.auth.validation.emailRequired]:      'Email is required.',
   [KEYS.auth.validation.passwordRequired]:   'Password is required.',
@@ -231,7 +219,6 @@ const translations: Record<string, string> = {
   [KEYS.auth.validation.passwordMismatch]:   'Passwords do not match.',
   [KEYS.auth.validation.confirmRequired]:    'Please confirm your password.',
 
-  // ── Products page ─────────────────────────────────────────────────────────
   [KEYS.products.title]:             'Products',
   [KEYS.products.subtitle]:          'Manage your product catalogue.',
   [KEYS.products.addBtn]:            'Add Product',
@@ -286,7 +273,6 @@ const translations: Record<string, string> = {
   [KEYS.products.gallery.editImages]:  'Edit Images',
   [KEYS.products.gallery.save]:        'Save Changes',
 
-  // ── Variants page ─────────────────────────────────────────────────────────
   [KEYS.variants.title]:          'Variants',
   [KEYS.variants.subtitle]:       'Sizes, colours, and stock for this product.',
   [KEYS.variants.backToProducts]: 'Back to Products',
@@ -352,7 +338,6 @@ const translations: Record<string, string> = {
   [KEYS.variants.toast.error]:            'Something went wrong. Please try again.',
   [KEYS.variants.tooltip.activate]:       'Activate',
   [KEYS.variants.tooltip.deactivate]:     'Deactivate',
-  // ── POS page ──────────────────────────────────────────────────────────────
   [KEYS.pos.title]:            'Point of Sale',
   [KEYS.pos.subtitle]:         'Process in-store sales.',
   [KEYS.pos.searchPlaceholder]:'Search by product name or SKU…',
@@ -440,7 +425,6 @@ const translations: Record<string, string> = {
   [KEYS.pos.idleLock.message]:    'The terminal has been locked due to inactivity. Please log in again to continue.',
   [KEYS.pos.idleLock.unlock]:     'Log In Again',
 
-  // ── Categories page ───────────────────────────────────────────────────────
   [KEYS.categories.title]:    'Categories',
   [KEYS.categories.subtitle]: 'Manage the product categories used across your catalogue.',
   [KEYS.categories.addBtn]:   'Add Category',
@@ -463,7 +447,6 @@ const translations: Record<string, string> = {
   [KEYS.categories.toast.inUse]:   'This category is in use by products and cannot be deleted.',
   [KEYS.categories.toast.error]:   'Something went wrong. Please try again.',
 
-  // ── Sales History ──────────────────────────────────────────────────────────
   [KEYS.salesHistory.title]:    'Sales History',
   [KEYS.salesHistory.subtitle]: 'A complete log of every sale processed at the POS.',
   [KEYS.salesHistory.newSale]:  'New Sale',
@@ -509,7 +492,6 @@ const translations: Record<string, string> = {
   [KEYS.salesHistory.void.success]:      'Sale voided successfully.',
   [KEYS.salesHistory.void.error]:        'Could not void sale. Please try again.',
 
-  // ── Transactions ───────────────────────────────────────────────────────────
   [KEYS.transactions.title]:    'Transactions',
   [KEYS.transactions.subtitle]: 'All payment transactions processed through the POS.',
   [KEYS.transactions.empty]:    'No transactions found for the selected filters.',
@@ -549,7 +531,6 @@ const translations: Record<string, string> = {
   [KEYS.transactions.verify.alreadyPaid]:        'This payment is already confirmed as paid.',
   [KEYS.transactions.verify.error]:              'Payment failed.',
 
-  // ── Notifications ─────────────────────────────────────────────────────────
   [KEYS.notifications.panelTitle]:  'Notifications',
   [KEYS.notifications.empty]:       'You\'re all caught up!',
   [KEYS.notifications.markRead]:    'Mark all as read',
@@ -558,7 +539,6 @@ const translations: Record<string, string> = {
   [KEYS.notifications.hoursAgo]:    'hr ago',
   [KEYS.notifications.daysAgo]:     'd ago',
 
-  // ── Settings ──────────────────────────────────────────────────────────────
   [KEYS.settings.title]:                'Settings',
   [KEYS.settings.subtitle]:             'Configure how the system behaves.',
   [KEYS.settings.saveBtn]:              'Save Changes',
@@ -575,7 +555,6 @@ const translations: Record<string, string> = {
   [KEYS.settings.groups.payments]:      'Payments',
   [KEYS.settings.groups.reports]:       'Reports',
   [KEYS.settings.groups.ecommerce]:     'E-commerce',
-  // ── Bulk Import ──────────────────────────────────────────────────────────
   [KEYS.bulkImport.btnLabel]:        'Import CSV',
   [KEYS.bulkImport.modalTitle]:      'Bulk Import Products',
   [KEYS.bulkImport.modalSubtitle]:   'Upload a CSV file to import products and variants in bulk.',

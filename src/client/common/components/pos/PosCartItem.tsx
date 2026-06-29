@@ -3,7 +3,7 @@ import { Group, Stack, Text, ActionIcon, NumberInput, Tooltip, Badge } from '@ma
 import type { PosCartItem } from '../../types';
 import { t } from '../../translations';
 import { KEYS } from '../../keys';
-import { formatPrice } from '../../utils/formatCurrency';
+import { useCurrency } from '../../hooks/useCurrency';
 
 interface Props {
     item:            PosCartItem;
@@ -14,6 +14,7 @@ interface Props {
 }
 
 const PosCartItem: React.FC<Props> = ({ item, canOverride, onUpdateQty, onRemove, onSetOverride }) => {
+    const { formatPrice } = useCurrency();
     const [overrideOpen, setOverrideOpen] = useState(false);
     const [overrideInput, setOverrideInput] = useState<number | string>(item.originalPrice);
 

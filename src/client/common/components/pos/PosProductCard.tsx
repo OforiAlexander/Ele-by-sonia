@@ -2,7 +2,7 @@ import React, { useState, memo } from 'react';
 import { Text, Badge } from '@mantine/core';
 import { t } from '../../translations';
 import { KEYS } from '../../keys';
-import { formatPrice } from '../../utils/formatCurrency';
+import { useCurrency } from '../../hooks/useCurrency';
 import { showError } from '../../utils/swal';
 import type { SearchVariantResult } from '../../types';
 
@@ -12,6 +12,7 @@ interface Props {
 }
 
 const PosProductCard: React.FC<Props> = memo(({ variant, onClick }) => {
+    const { formatPrice } = useCurrency();
     const [hovered, setHovered] = useState(false);
     const opts = variant.optionValues?.map((v) => v.value).join(' / ');
     const outOfStock = variant.stock <= 0;

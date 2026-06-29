@@ -63,14 +63,21 @@ const NavIcon: React.FC<{ iconKey: string }> = ({ iconKey }) => (
   </svg>
 );
 
-const Sidebar: React.FC = () => {
+interface Props {
+  mobileOpen?: boolean;
+  onClose?: () => void;
+}
+
+const Sidebar: React.FC<Props> = ({ mobileOpen, onClose }) => {
   const [collapsed, setCollapsed] = useState(false);
   const { user } = useAuth();
 
   const visibleNav = user ? NAV.filter((item) => item.allowed(user)) : [];
 
+  const mobileClass = mobileOpen ? ' mobile-open' : '';
+
   return (
-    <aside className={`sidebar${collapsed ? ' collapsed' : ''}`}>
+    <aside className={`sidebar${collapsed ? ' collapsed' : ''}${mobileClass}`}>
       <div className="sidebar-logo" style={{ justifyContent: collapsed ? 'center' : 'space-between' }}>
         {!collapsed && (
           <div className="sidebar-logo-inner">
@@ -108,6 +115,7 @@ const Sidebar: React.FC = () => {
             end={to === '/'}
             title={collapsed ? label : undefined}
             className={({ isActive }) => `navitem${isActive ? ' active' : ''}`}
+            onClick={onClose}
           >
             <NavIcon iconKey={key} />
             <span className="nav-label">{label}</span>

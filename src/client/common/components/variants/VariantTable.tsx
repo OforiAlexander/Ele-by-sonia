@@ -3,7 +3,7 @@ import { Table, Badge, ActionIcon, Group, Text, Tooltip, NumberInput } from '@ma
 import type { ProductVariant } from '../../types';
 import { t } from '../../translations';
 import { KEYS } from '../../keys';
-import { formatCurrency } from '../../utils/formatCurrency';
+import { useCurrency } from '../../hooks/useCurrency';
 
 type StockStatus = 'active' | 'lowStock' | 'outOfStock' | 'inactive';
 
@@ -91,6 +91,7 @@ const VariantTable: React.FC<Props> = ({
   onToggleActive,
   onSetThreshold,
 }) => {
+  const { formatCurrency } = useCurrency();
   if (variants.length === 0) {
     return (
       <Text c="dimmed" size="sm" ta="center" py="xl">

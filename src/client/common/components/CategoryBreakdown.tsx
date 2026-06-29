@@ -4,7 +4,7 @@ import api from '../api';
 import AnimatedBar from './AnimatedBar';
 import { t } from '../translations';
 import { KEYS } from '../keys';
-import { formatCurrency } from '../utils/formatCurrency';
+import { useCurrency } from '../hooks/useCurrency';
 
 const PERIOD_MAP = { '7D': 'weekly', '30D': 'monthly', '12M': 'annual' } as const;
 
@@ -17,6 +17,7 @@ interface Props {
 }
 
 const CategoryBreakdown: React.FC<Props> = ({ initialCategories, range, active }) => {
+  const { formatCurrency } = useCurrency();
   const [categories, setCategories] = useState<Item[]>(initialCategories);
   const maxRev = Math.max(...categories.map(c => c.revenue), 1);
 

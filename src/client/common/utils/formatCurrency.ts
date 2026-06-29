@@ -1,9 +1,9 @@
-export function formatCurrency(v: number): string {
-  if (v >= 1_000_000) return `₵${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 1_000)     return `₵${(v / 1_000).toFixed(1)}k`;
-  return `₵${Math.round(v)}`;
+export function formatCurrency(v: number, symbol = '₵'): string {
+  if (v >= 1_000_000) return `${symbol}${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000)     return `${symbol}${(v / 1_000).toFixed(1)}k`;
+  return `${symbol}${Math.round(v)}`;
 }
 
-export function formatPrice(amount: number | string): string {
-  return `₵${Number(amount).toFixed(2)}`;
+export function formatPrice(amount: number | string, symbol = '₵'): string {
+  return `${symbol}${Number(amount).toFixed(2)}`;
 }

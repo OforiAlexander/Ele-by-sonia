@@ -31,7 +31,7 @@ export interface ReceiptSettings {
 
 export function useReceiptSettings(publicSettings: PublicSettings): ReceiptSettings {
     return useMemo(() => ({
-        businessName:       publicSettings['BUSINESS_NAME']                ?? 'Elegance by Sconia',
+        businessName:       publicSettings['BUSINESS_NAME']                ?? '',
         businessTagline:    publicSettings['BUSINESS_TAGLINE']             ?? '',
         businessPhone:      publicSettings['BUSINESS_PHONE']               ?? '',
         businessEmail:      publicSettings['BUSINESS_EMAIL']               ?? '',

@@ -45,8 +45,6 @@ export interface ImportResult {
     skippedDetails:  Array<{ row: number; product_name: string; reason: string }>;
 }
 
-// ── helpers ──────────────────────────────────────────────────────────────────
-
 function variantFingerprint(row: CsvRow): string {
     const pairs: Array<[string, string]> = [];
     for (let i = 1; i <= 3; i++) {
@@ -82,7 +80,6 @@ async function ensureOptionValue(
     return value.id;
 }
 
-// ── PDF builder ───────────────────────────────────────────────────────────────
 
 function buildPdfReport(
     businessName: string,
@@ -184,8 +181,6 @@ function renderTable(doc: PDFKit.PDFDocument, headers: string[], rows: string[][
     doc.y = y;
 }
 
-// ── public API ────────────────────────────────────────────────────────────────
-
 export async function importFromCsv(buffer: Buffer, createdBy: string): Promise<ImportResult> {
     await ensureLoaded();
 
@@ -195,7 +190,6 @@ export async function importFromCsv(buffer: Buffer, createdBy: string): Promise<
         trim:              true,
     });
 
-    // ── Phase 1a: required headers check ─────────────────────────────────────
     if (records.length > 0) {
         const presentHeaders = Object.keys(records[0]);
         const missingHeaders = REQUIRED_HEADERS.filter((h) => !presentHeaders.includes(h));
@@ -207,7 +201,6 @@ export async function importFromCsv(buffer: Buffer, createdBy: string): Promise<
     const errorDetails:   ImportResult['errorDetails']   = [];
     const skippedDetails: ImportResult['skippedDetails'] = [];
 
-    // ── Phase 1b: per-row field validation ───────────────────────────────────
     const seenSkusInFile = new Map<string, number>();
     const validRows: Array<{ row: CsvRow; rowNum: number }> = [];
 
@@ -252,7 +245,6 @@ export async function importFromCsv(buffer: Buffer, createdBy: string): Promise<
         if (!hasError) validRows.push({ row, rowNum });
     }
 
-    // ── Phase 1c: batch DB checks ─────────────────────────────────────────────
     const categoryNames = [...new Set(validRows.map((r) => r.row.category.trim()))];
     const skusToCheck   = validRows.map((r) => r.row.sku?.trim()).filter((s): s is string => !!s);
 
@@ -287,7 +279,6 @@ export async function importFromCsv(buffer: Buffer, createdBy: string): Promise<
         if (!hasError) phaseOneValid.push({ row, rowNum });
     }
 
-    // ── Phase 2: deduplication ────────────────────────────────────────────────
     type GroupKey = string;
     const groups = new Map<GroupKey, Array<{ row: CsvRow; rowNum: number }>>();
 
@@ -362,7 +353,6 @@ export async function importFromCsv(buffer: Buffer, createdBy: string): Promise<
         }
     }
 
-    // ── Phase 3: commit all inserts ───────────────────────────────────────────
     let productsCreated = 0;
     let variantsCreated = 0;
 
@@ -434,7 +424,6 @@ export async function importFromCsv(buffer: Buffer, createdBy: string): Promise<
         skippedDetails,
     };
 
-    // ── fire-and-forget: email PDF to owner ───────────────────────────────────
     const ownerEmail = process.env.OWNER_EMAIL;
     if (ownerEmail) {
         const businessName = get(SETTINGS.BUSINESS_NAME)?.value ?? 'Elegance by Sconia';

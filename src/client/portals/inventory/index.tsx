@@ -1,4 +1,4 @@
-import React, { Suspense } from 'react';
+import React, { Suspense, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MantineProvider } from '@mantine/core';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
@@ -43,6 +43,7 @@ const theme = {
 
 const Layout: React.FC = () => {
   const { user, loading } = useAuth();
+  const [navOpen, setNavOpen] = useState(false);
 
   if (loading) return <AppLoader />;
 
@@ -61,9 +62,13 @@ const Layout: React.FC = () => {
 
   return (
     <div className="app">
-      <Sidebar />
+      <div
+        className={`sidebar-overlay${navOpen ? ' visible' : ''}`}
+        onClick={() => setNavOpen(false)}
+      />
+      <Sidebar mobileOpen={navOpen} onClose={() => setNavOpen(false)} />
       <div className="main">
-        <Topbar />
+        <Topbar onMenuOpen={() => setNavOpen(true)} />
         <div className="content">
           <Suspense fallback={<AppLoader />}>
             <Outlet />

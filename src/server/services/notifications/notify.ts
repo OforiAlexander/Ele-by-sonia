@@ -80,8 +80,7 @@ export async function notifyUsersWithPermission(permissionName: string, payload:
     }
 }
 
-// Deduplicates: skip inserting if we already notified this user about this variant within 24 h.
-// Used by both the cron and real-time triggers to prevent the same person seeing it twice in a day.
+// skips insert if this variant was already notified within 24h (deduplicates cron + real-time triggers)
 export async function notifyStockAlertIfNew(permissionName: string, variantId: string, payload: NotifPayload): Promise<void> {
     try {
         const users = await activeUsersWithPermission(permissionName);
@@ -103,7 +102,6 @@ export async function notifyStockAlertIfNew(permissionName: string, variantId: s
     }
 }
 
-// Notifies both the specific staff member AND the owner — deduplicates if they're the same person.
 export async function notifySaleParticipants(staffId: string, payload: NotifPayload): Promise<void> {
     try {
         const owner = await knex('users')

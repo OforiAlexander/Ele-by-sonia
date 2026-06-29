@@ -5,7 +5,7 @@ import {
 } from '@mantine/core';
 import { t } from '../../translations';
 import { KEYS } from '../../keys';
-import { formatPrice } from '../../utils/formatCurrency';
+import { useCurrency } from '../../hooks/useCurrency';
 import { formatDateTime } from '../../utils/dateUtils';
 import SaleStatusBadge from './SaleStatusBadge';
 import SaleMethodLabel from './SaleMethodLabel';
@@ -20,7 +20,9 @@ interface Props {
     onVoid:   () => void;
 }
 
-const SaleDetailDrawer: React.FC<Props> = ({ sale, loading, canVoid, voiding, onClose, onVoid }) => (
+const SaleDetailDrawer: React.FC<Props> = ({ sale, loading, canVoid, voiding, onClose, onVoid }) => {
+    const { formatPrice } = useCurrency();
+    return (
     <Drawer
         opened={!!sale}
         onClose={onClose}
@@ -116,6 +118,7 @@ const SaleDetailDrawer: React.FC<Props> = ({ sale, loading, canVoid, voiding, on
             </Stack>
         ) : null}
     </Drawer>
-);
+    );
+};
 
 export default SaleDetailDrawer;

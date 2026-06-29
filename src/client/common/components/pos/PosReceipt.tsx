@@ -2,7 +2,7 @@ import React from 'react';
 import type { Sale, PosCartItem } from '../../types';
 import { t } from '../../translations';
 import { KEYS } from '../../keys';
-import { formatPrice } from '../../utils/formatCurrency';
+import { useCurrency } from '../../hooks/useCurrency';
 
 const PAPER_WIDTHS: Record<string, number> = {
     '58mm': 220,
@@ -63,6 +63,7 @@ const PosReceipt = React.forwardRef<HTMLDivElement, Props>(
         showRefundPolicy = true,
         showTaxBreakdown = false,
     }, ref) => {
+        const { formatPrice } = useCurrency();
         const widthPx = PAPER_WIDTHS[paperWidth] ?? PAPER_WIDTHS['80mm'];
 
         const date = new Date(sale.created_at).toLocaleString('en-GH', {

@@ -154,7 +154,7 @@ const VariantsPage: React.FC = () => {
       <ProductImageGallery product={product} canEdit={canEditProduct} onRefetch={refetch} />
 
       <Grid gutter="md">
-        <Grid.Col span={4}>
+        <Grid.Col span={{ base: 12, md: 4 }}>
           <OptionTypesPanel
             productId={productId}
             optionTypes={optionTypes}
@@ -163,7 +163,7 @@ const VariantsPage: React.FC = () => {
           />
         </Grid.Col>
 
-        <Grid.Col span={8}>
+        <Grid.Col span={{ base: 12, md: 8 }}>
           <Stack gap="sm">
             <Group justify="flex-end">
               {canCreate && (

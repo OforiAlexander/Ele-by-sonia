@@ -10,6 +10,9 @@ import type { PosCartItem, PublicSettings, Sale } from '../../types';
 import { t } from '../../translations';
 import { KEYS } from '../../keys';
 import { formatPrice } from '../../utils/formatCurrency';
+import { MTN_PREFIXES, VOD_PREFIXES, ATL_PREFIXES } from '../../constants/momoProviders';
+
+const MOMO_POLL_MS = 3_000;
 import { showError } from '../../utils/swal';
 
 type MomoProvider = 'mtn' | 'vod' | 'atl';
@@ -31,9 +34,9 @@ function detectProvider(phone: string): MomoProvider | null {
     let norm = clean;
     if (norm.startsWith('+233')) norm = '0' + norm.slice(4);
     else if (norm.startsWith('233')) norm = '0' + norm.slice(3);
-    if (['024','054','055','059','025'].some((p) => norm.startsWith(p))) return 'mtn';
-    if (['020','050'].some((p) => norm.startsWith(p))) return 'vod';
-    if (['026','056','027','057'].some((p) => norm.startsWith(p))) return 'atl';
+    if (MTN_PREFIXES.some((p) => norm.startsWith(p))) return 'mtn';
+    if (VOD_PREFIXES.some((p) => norm.startsWith(p))) return 'vod';
+    if (ATL_PREFIXES.some((p) => norm.startsWith(p))) return 'atl';
     return null;
 }
 
@@ -57,6 +60,8 @@ const PosPaymentModal: React.FC<Props> = ({
     const splitEnabled   = publicSettings['SPLIT_TENDER_ENABLED']            === 'true';
     const requirePhone   = publicSettings['REQUIRE_CUSTOMER_PHONE_FOR_MOMO'] !== 'false';
     const momoPromptText = publicSettings['MOMO_PROMPT_CUSTOMER_TEXT']       ?? '';
+    const currencySymbol = publicSettings['CURRENCY_SYMBOL']                 ?? '₵';
+    const fmt = (v: number | string) => formatPrice(v, currencySymbol);
 
     const [tab, setTab]   = useState<string>('cash');
     const [step, setStep] = useState<ModalStep>('select');
@@ -91,7 +96,7 @@ const PosPaymentModal: React.FC<Props> = ({
                     showError(t(KEYS.pos.payment.failed), t(KEYS.pos.payment.failedHint));
                 }
             } catch { /* network blip — keep polling */ }
-        }, 3000);
+        }, MOMO_POLL_MS);
 
         return () => { if (pollRef.current) clearInterval(pollRef.current); };
     }, [step, pendingSale]);
@@ -228,7 +233,7 @@ const PosPaymentModal: React.FC<Props> = ({
                 <Stack align="center" gap="md" py="md">
                     <Loader size="lg" color="yellow" />
                     <Text size="sm" ta="center" c="dimmed">{pendingText}</Text>
-                    <Text fw={700} size="xl">{formatPrice(cartTotal)}</Text>
+                    <Text fw={700} size="xl">{fmt(cartTotal)}</Text>
                     <Text size="xs" c="dimmed">{pendingSale?.sale_number}</Text>
                 </Stack>
             </Modal>
@@ -249,11 +254,11 @@ const PosPaymentModal: React.FC<Props> = ({
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2d9e52" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <circle cx="12" cy="12" r="10"/><polyline points="9 12 12 15 16 9"/>
                     </svg>
-                    <Text fw={700} size="lg">{formatPrice(Number(pendingSale.amount_due))}</Text>
+                    <Text fw={700} size="lg">{fmt(Number(pendingSale.amount_due))}</Text>
                     <Text size="sm" c="dimmed">{pendingSale.sale_number}</Text>
                     {pendingSale.change_given && Number(pendingSale.change_given) > 0 && (
                         <Text size="sm">
-                            {t(KEYS.pos.receipt.change)}: <b>{formatPrice(Number(pendingSale.change_given))}</b>
+                            {t(KEYS.pos.receipt.change)}: <b>{fmt(Number(pendingSale.change_given))}</b>
                         </Text>
                     )}
                 </Stack>
@@ -269,7 +274,7 @@ const PosPaymentModal: React.FC<Props> = ({
             <Stack gap="md">
                 <Group justify="space-between" p="xs" style={{ background: '#f8f9f5', borderRadius: 8 }}>
                     <Text size="sm" c="dimmed">{t(KEYS.pos.payment.amountDue)}</Text>
-                    <Text size="xl" fw={800}>{formatPrice(cartTotal)}</Text>
+                    <Text size="xl" fw={800}>{fmt(cartTotal)}</Text>
                 </Group>
 
                 <Tabs value={tab} onChange={(v) => setTab(v ?? 'cash')}>
@@ -310,7 +315,7 @@ const PosPaymentModal: React.FC<Props> = ({
                                             </Field>
                                             <Group justify="space-between" style={{ background: '#f0faf4', borderRadius: 8, padding: '10px 14px' }}>
                                                 <Text size="sm">{t(KEYS.pos.payment.change)}</Text>
-                                                <Text fw={700} c="green">{formatPrice(change)}</Text>
+                                                <Text fw={700} c="green">{fmt(change)}</Text>
                                             </Group>
                                             <Group justify="flex-end">
                                                 <Button variant="subtle" color="gray" onClick={onClose}>{t(KEYS.pos.payment.cancel)}</Button>
@@ -400,7 +405,7 @@ const PosPaymentModal: React.FC<Props> = ({
                                                 </Field>
                                                 <Group justify="space-between" style={{ background: '#fef9f0', borderRadius: 8, padding: '10px 14px' }}>
                                                     <Text size="sm">{t(KEYS.pos.payment.splitMomoLabel)}</Text>
-                                                    <Text fw={700} c="yellow.7">{formatPrice(momoAmount)}</Text>
+                                                    <Text fw={700} c="yellow.7">{fmt(momoAmount)}</Text>
                                                 </Group>
                                                 <Field name="customer_phone">
                                                     {({ field }: FieldProps) => (

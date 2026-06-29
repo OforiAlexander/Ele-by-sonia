@@ -7,7 +7,7 @@ import api from '../../../common/api';
 import { useAuth } from '../../../common/context/AuthContext';
 import { t } from '../../../common/translations';
 import { KEYS } from '../../../common/keys';
-import { formatPrice } from '../../../common/utils/formatCurrency';
+import { useCurrency } from '../../../common/hooks/useCurrency';
 import { formatDateTime, toLocalDate } from '../../../common/utils/dateUtils';
 import { showConfirm, showSuccess, showError } from '../../../common/utils/swal';
 import SaleStatusBadge from '../../../common/components/sales/SaleStatusBadge';
@@ -21,6 +21,7 @@ const CODE_CONFIRMED = 'PAYMENT_CONFIRMED';
 
 const TransactionsPage: React.FC = () => {
     const { user } = useAuth();
+    const { formatPrice } = useCurrency();
     const canVerify = user?.is_owner || !!user?.can_verify_payment;
 
     const [sales, setSales]     = useState<Sale[]>([]);

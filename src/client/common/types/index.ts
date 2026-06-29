@@ -133,7 +133,6 @@ export interface ProductVariant {
   optionValues?: ProductVariantOptionValue[];
 }
 
-// Shape returned by GET /api/variants/search — ProductVariant + product_name, used by POS
 export interface SearchVariantResult {
   id: string;
   product_id: string;
@@ -148,7 +147,6 @@ export interface SearchVariantResult {
   optionValues: ProductVariantOptionValue[];
 }
 
-// Cart item held in POS page state (frontend-only, never sent to backend)
 export interface CartItem {
   variantId: string;
   productName: string;
@@ -170,7 +168,6 @@ export interface SaleLineItem {
   variant?: { id: string; sku: string | null; product_id: string; product_name?: string };
 }
 
-// Shape of a completed sale returned by POST /api/sales and GET /api/sales/:id
 export interface Sale {
   id: string;
   sale_number: string;
@@ -201,7 +198,6 @@ export interface TransactionStats {
   pendingTotal: number;
 }
 
-// POS cart item — frontend-only, never sent to the backend verbatim
 export interface PosCartItem {
   variantId: string;
   productName: string;
@@ -237,7 +233,6 @@ export interface AppSetting {
   restart_required: boolean;
 }
 
-// Key-value map returned by GET /api/settings/public
 export type PublicSettings = Record<string, string>;
 
 export interface StockHealthData {

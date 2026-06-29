@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import api from '../api';
 import type { SearchVariantResult } from '../types';
 
+const POS_SEARCH_LIMIT = 24;
+
 export function usePosSearch() {
     const [query, setQuery]     = useState('');
     const [results, setResults] = useState<SearchVariantResult[]>([]);
@@ -11,7 +13,7 @@ export function usePosSearch() {
     const fetchResults = async (q: string) => {
         setLoading(true);
         try {
-            const params: Record<string, string | number> = { limit: 24 };
+            const params: Record<string, string | number> = { limit: POS_SEARCH_LIMIT };
             if (q.trim().length >= 2) params.q = q.trim();
             const res = await api.get('/variants/search', { params });
             setResults(res.data.data ?? []);

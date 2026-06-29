@@ -171,7 +171,6 @@ export async function processSale(
 
     let amountDue = parseFloat((subtotal - totalDiscount).toFixed(2));
 
-    // ── Ghana GRA tax computation ────────────────────────────────────────────
     const VAT_RATE     = 0.15;
     const NHIL_RATE    = 0.025;
     const GETFUND_RATE = 0.025;
@@ -363,7 +362,7 @@ export async function processSale(
         return inserted.id;
     });
 
-    // ── Inventory intelligence (fire-and-forget, never blocks the sale response) ──
+    // fire-and-forget: never blocks the sale response
     (async () => {
         try {
             await ensureLoaded();

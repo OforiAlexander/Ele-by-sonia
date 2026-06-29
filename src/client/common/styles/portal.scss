@@ -413,6 +413,59 @@ $text-muted:    #8A9890;
   font-size: 12px;
 }
 
+// ── POS page layout ───────────────────────────────────────────────────────────
+
+.pos-layout {
+  display: flex;
+  gap: 20px;
+  height: calc(100vh - 116px);
+  overflow: hidden;
+}
+
+.pos-left {
+  flex: 0 0 55%;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.pos-right {
+  flex: 0 0 45%;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid $border;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+// ── Mobile nav overlay ────────────────────────────────────────────────────────
+
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 199;
+
+  &.visible { display: block; }
+}
+
+.hamburger-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: $text-primary;
+  cursor: pointer;
+  padding: 6px;
+
+  &:hover { background: #f0f3f1; }
+}
+
 // ── App Loader ────────────────────────────────────────────────────────────────
 
 @keyframes ebs-spin {
@@ -444,19 +497,6 @@ $text-muted:    #8A9890;
   border-radius: 50%;
   border-top-color: $primary;
   inset: 0;
-  position: absolute;
-}
-
-.app-loader-initials {
-  align-items: center;
-  color: $primary;
-  display: flex;
-  font-family: 'Space Grotesk', sans-serif;
-  font-size: 13px;
-  font-weight: 700;
-  inset: 0;
-  justify-content: center;
-  letter-spacing: 0.08em;
   position: absolute;
 }
 
@@ -741,5 +781,73 @@ $text-muted:    #8A9890;
   letter-spacing: .04em;
   padding: 1px 5px;
   text-transform: uppercase;
+}
+
+// ── Responsive: mobile (≤ 768 px) ────────────────────────────────────────────
+
+@media (max-width: 768px) {
+  // Sidebar becomes a slide-in overlay drawer
+  .sidebar {
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    height: 100vh;
+    left: -280px;
+    position: fixed;
+    top: 0;
+    transition: left 0.25s cubic-bezier(.4, 0, .2, 1);
+    width: 260px !important;
+    z-index: 200;
+
+    &.mobile-open { left: 0; }
+
+    // Always show full labels when the overlay drawer is open
+    &.collapsed {
+      width: 260px !important;
+
+      .navitem { gap: 11px; justify-content: flex-start; padding: 10px 16px; }
+      .nav-label { max-width: unset; opacity: 1; }
+      .sidebar-logo-text { max-width: unset; opacity: 1; overflow: visible; }
+    }
+
+    .sidebar-toggle-btn { display: none; }
+  }
+
+  .hamburger-btn { display: flex; }
+
+  .topbar { padding: 0 14px; }
+  .topbar-search { display: none; }
+  .topbar-user-info { display: none; }
+
+  .content { padding: 16px; }
+
+  .ptitle { font-size: 20px; }
+  .kpi { min-height: auto; }
+
+  // Horizontal scroll for wide tables
+  .mantine-Table-root { overflow-x: auto; }
+
+  // Staff page
+  .staff-page-header { flex-direction: column; gap: 12px; }
+  .staff-summary-bar { flex-wrap: wrap; }
+  .staff-stat { flex: 0 0 calc(50% - 7px); }
+  .staff-filter-bar { align-items: stretch; flex-direction: column; }
+  .staff-filter-left { max-width: 100%; }
+
+  // POS page
+  .pos-layout {
+    flex-direction: column;
+    height: auto;
+    overflow: visible;
+  }
+
+  .pos-left {
+    flex: none;
+    height: 50vh;
+    min-height: 300px;
+  }
+
+  .pos-right {
+    flex: none;
+    min-height: 300px;
+  }
 }
 

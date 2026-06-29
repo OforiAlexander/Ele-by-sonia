@@ -27,6 +27,7 @@ export const SETTINGS = {
   LOW_STOCK_ALERT_RECIPIENTS:    'LOW_STOCK_ALERT_RECIPIENTS',
   SALE_NUMBER_PREFIX:            'SALE_NUMBER_PREFIX',
   ORDER_NUMBER_PREFIX:           'ORDER_NUMBER_PREFIX',
+  CURRENCY_SYMBOL:               'CURRENCY_SYMBOL',
   PAYSTACK_CURRENCY:             'PAYSTACK_CURRENCY',
   SALES_GLOBAL_DISCOUNT_RATE:    'SALES_GLOBAL_DISCOUNT_RATE',
   MAX_DISCOUNT_PERCENT:          'MAX_DISCOUNT_PERCENT',
@@ -351,6 +352,15 @@ export const SETTING_DEFINITIONS: SettingDefinition[] = [
   },
 
   // ── Payments ──────────────────────────────────────────────────────────────
+  {
+    name:     SETTINGS.CURRENCY_SYMBOL,
+    label:    'Currency symbol',
+    value:    '₵',
+    group:    'general',
+    editable: true,
+    type:     'string',
+    hint:     'Symbol shown next to all monetary values in the UI and on receipts.',
+  },
   {
     name:     SETTINGS.PAYSTACK_CURRENCY,
     label:    'Paystack currency code',

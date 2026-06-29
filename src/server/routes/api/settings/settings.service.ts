@@ -5,6 +5,7 @@ import type { SettingDefinition } from '../../../constants/settings';
 
 const PUBLIC_SETTINGS = new Set([
     // Business identity (receipt + report headers)
+    SETTINGS.CURRENCY_SYMBOL,
     SETTINGS.BUSINESS_NAME,
     SETTINGS.BUSINESS_TAGLINE,
     SETTINGS.BUSINESS_PHONE,

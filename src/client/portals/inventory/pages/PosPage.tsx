@@ -18,7 +18,7 @@ import PosIdleLockOverlay from '../../../common/components/pos/PosIdleLockOverla
 import PosCompletedSaleModal from '../../../common/components/pos/PosCompletedSaleModal';
 import { t } from '../../../common/translations';
 import { KEYS } from '../../../common/keys';
-import { formatPrice } from '../../../common/utils/formatCurrency';
+import { useCurrency } from '../../../common/hooks/useCurrency';
 import { showError, showSuccess, showConfirm } from '../../../common/utils/swal';
 import type { Sale, SearchVariantResult, PosCartItem as PosCartItemType } from '../../../common/types';
 
@@ -42,6 +42,7 @@ const PosPage: React.FC = () => {
 
     const publicSettings  = usePublicSettings();
     const receiptSettings = useReceiptSettings(publicSettings);
+    const { formatPrice } = useCurrency();
 
     const [paymentOpen, setPaymentOpen]     = useState(false);
     const [holdOpen, setHoldOpen]           = useState(false);
@@ -94,10 +95,9 @@ const PosPage: React.FC = () => {
     }
 
     return (
-        <div style={{ display: 'flex', gap: 20, height: 'calc(100vh - 116px)', overflow: 'hidden' }}>
+        <div className="pos-layout">
 
-            {/* ── Left panel: search + product grid ─────────────────────── */}
-            <div style={{ flex: '0 0 55%', display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+            <div className="pos-left">
                 <div style={{ marginBottom: 14 }}>
                     <h1 className="ptitle">{t(KEYS.pos.title)}</h1>
                     <p className="psub">{t(KEYS.pos.subtitle)}</p>
@@ -158,16 +158,7 @@ const PosPage: React.FC = () => {
                 </ScrollArea>
             </div>
 
-            {/* ── Right panel: cart ─────────────────────────────────────── */}
-            <div style={{
-                flex: '0 0 45%',
-                display: 'flex',
-                flexDirection: 'column',
-                background: '#fff',
-                border: '1px solid #ECEFEC',
-                borderRadius: 14,
-                overflow: 'hidden',
-            }}>
+            <div className="pos-right">
                 {/* Cart header */}
                 <Group justify="space-between" p="md" style={{ borderBottom: '1px solid #ECEFEC', flexShrink: 0 }}>
                     <Group gap={8}>
@@ -290,7 +281,6 @@ const PosPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* ── Modals / drawers ──────────────────────────────────────── */}
             <PosPaymentModal
                 opened={paymentOpen}
                 onClose={() => setPaymentOpen(false)}

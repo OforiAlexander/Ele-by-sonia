@@ -68,23 +68,19 @@ export async function registerJobs(): Promise<void> {
         await runDailyOpeningEmail().catch((err) => logger.error('Daily opening email failed:', err));
     });
 
-    // Monthly P&L: 1st of each month at 06:00
     schedule.scheduleJob('0 6 1 * *', async () => {
         logger.info('Running monthly P&L report');
         await runMonthlyReport().catch((err) => logger.error('Monthly report failed:', err));
     });
 
-    // Runs daily; job itself gates on the configured interval
     schedule.scheduleJob('0 8 * * *', async () => {
         await runStockCountReminder().catch((err) => logger.error('Stock count reminder failed:', err));
     });
 
-    // Midnight: purge notifications older than 7 days
     schedule.scheduleJob('0 0 * * *', async () => {
         await runCleanupNotifications().catch((err) => logger.error('Notification cleanup failed:', err));
     });
 
-    // Saturday 09:00: remind owner about products missing images
     schedule.scheduleJob('0 9 * * 6', async () => {
         await runMissingImagesReminder().catch((err) => logger.error('Missing images reminder failed:', err));
     });

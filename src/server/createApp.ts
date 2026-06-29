@@ -81,6 +81,9 @@ function requestLoggerMiddleware(req: Request, res: Response, next: NextFunction
 export function createApp(sessionMaxAgeMs?: number) {
     const app = express();
 
+    // trust proxy so secure cookies work behind Render's load balancer
+    if (process.env.NODE_ENV === 'production') app.set('trust proxy', 1);
+
     app.use(requestLoggerMiddleware);
 
     app.use(
@@ -105,6 +108,8 @@ export function createApp(sessionMaxAgeMs?: number) {
         })
     );
     app.use(cors({ origin: BASE_URL, credentials: true }));
+
+    app.get('/health', (_req, res) => res.status(200).json({ status: 'ok' }));
 
     app.use('/webhooks/paystack', express.raw({ type: 'application/json' }), paystackWebhook);
 

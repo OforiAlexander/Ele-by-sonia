@@ -14,7 +14,7 @@ const BrandLogo: React.FC<Props> = ({ size = 'sm' }) => (
   <div className="brand-logo" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '15px', maxWidth: '100%' }}>
     <img
     src={ebsLogo}
-    alt="Elegance by Sconia"
+    alt="Store logo"
     height={HEIGHTS[size]}
     style={{ display: 'block' }}
   />

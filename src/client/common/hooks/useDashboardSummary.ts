@@ -7,6 +7,9 @@ export type { DashSummary };
 interface TopProductRow  { productName: string; revenue: string | number }
 interface CatBreakdownRow { group: string; revenue: string | number }
 
+const PRODUCT_EXISTENCE_LIMIT = 1;
+const TOP_ITEMS_LIMIT = 4;
+
 export function useDashboardSummary() {
   const [data, setData]         = useState<DashSummary | null>(null);
   const [loading, setLoading]   = useState(true);
@@ -14,9 +17,9 @@ export function useDashboardSummary() {
 
   useEffect(() => {
     Promise.all([
-      api.get('/products?limit=1').catch(() => null),
+      api.get(`/products?limit=${PRODUCT_EXISTENCE_LIMIT}`).catch(() => null),
       api.get('/reports/summary?period=annual').catch(() => null),
-      api.get('/reports/top-products?period=annual&limit=4').catch(() => null),
+      api.get(`/reports/top-products?period=annual&limit=${TOP_ITEMS_LIMIT}`).catch(() => null),
       api.get('/reports/chart?period=annual&metric=revenue').catch(() => null),
       api.get('/reports/profit?period=annual&groupBy=category').catch(() => null),
     ]).then(([productsRes, summaryRes, topRes, chartRes, catRes]) => {
