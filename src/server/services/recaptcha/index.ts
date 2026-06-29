@@ -1,8 +1,10 @@
 import axios from 'axios';
 
 export async function verifyRecaptcha(token: string): Promise<boolean> {
+  if (!process.env.RECAPTCHA_SECRET_KEY) return true;
+
   const { data } = await axios.post(
-    'https://www.google.com/recaptcha/api/siteverify', // remove from here
+    'https://www.google.com/recaptcha/api/siteverify',
     null,
     {
       params: {

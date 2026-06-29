@@ -7,12 +7,14 @@ import logger from '../../../services/logger';
 
 export async function processSaleController(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-        const { items, payment_method, amount_tendered, discount, note } = req.body;
+        const { items, payment_method, amount_tendered, discount, note, customer_phone, momo_provider, cash_split_amount } = req.body;
 
-        if (discount && Number(discount) > 0 && !req.user!.can_discount_sales) {
+        if (discount && Number(discount) > 0 && !req.user!.can_discount_sales && !req.user!.is_owner) {
             res.status(403).json({ code: CODES.FORBIDDEN, error: 'You do not have permission to apply discounts.' });
             return;
         }
+
+        const canOverridePrice = !!(req.user!.can_override_price || req.user!.is_owner);
 
         const sale = await SalesService.processSale(
             req.user!.id,
@@ -21,12 +23,18 @@ export async function processSaleController(req: Request, res: Response, next: N
             amount_tendered !== undefined ? Number(amount_tendered) : undefined,
             Number(discount ?? 0),
             note,
+            customer_phone,
+            momo_provider,
+            canOverridePrice,
+            cash_split_amount !== undefined ? Number(cash_split_amount) : undefined,
         );
 
         try {
-            await writeAuditLog(req.user!.id, AuditLog.SALE_COMPLETED, 'sale', sale.id,
+            await writeAuditLog(
+                req.user!.id, AuditLog.SALE_COMPLETED, 'sale', sale.id,
                 undefined,
-                { sale_number: sale.sale_number, amount_due: sale.amount_due, payment_method: sale.payment_method });
+                { sale_number: sale.sale_number, amount_due: sale.amount_due, payment_method: sale.payment_method },
+            );
         } catch (err) {
             logger.error('Audit log failed for sale %s: %o', sale.id, err);
         }
@@ -37,14 +45,17 @@ export async function processSaleController(req: Request, res: Response, next: N
 
 export async function listSalesController(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-        const page = Number(req.query.page ?? 1);
+        const page  = Number(req.query.page  ?? 1);
         const limit = Math.min(Number(req.query.limit ?? 20), 100);
         const result = await SalesService.listSales({
             page,
             limit,
-            from: req.query.from as string | undefined,
-            to: req.query.to as string | undefined,
-            paymentMethod: req.query.payment_method as string | undefined,
+            from:          req.query.from            as string | undefined,
+            to:            req.query.to              as string | undefined,
+            paymentMethod: req.query.payment_method  as string | undefined,
+            paymentStatus: req.query.payment_status  as string | undefined,
+            includeVoided: req.query.include_voided  === 'true',
+            includeStats:  req.query.include_stats   === 'true',
         });
         res.json({ data: result });
     } catch (err) { next(err); }
@@ -61,12 +72,62 @@ export async function voidSaleController(req: Request, res: Response, next: Next
         const sale = await SalesService.voidSale(req.params.id, req.user!.id);
 
         try {
-            await writeAuditLog(req.user!.id, AuditLog.SALE_VOIDED, 'sale', sale.id,
-                { sale_number: sale.sale_number, amount_due: sale.amount_due });
+            await writeAuditLog(
+                req.user!.id, AuditLog.SALE_VOIDED, 'sale', sale.id,
+                { sale_number: sale.sale_number, amount_due: sale.amount_due },
+            );
         } catch (err) {
             logger.error('Audit log failed for void of sale %s: %o', sale.id, err);
         }
 
         res.json({ code: CODES.SALE_VOIDED, data: sale });
+    } catch (err) { next(err); }
+}
+
+export async function processSaleReturnController(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+        const { items, note } = req.body;
+        const result = await SalesService.processSaleReturn(
+            req.params.id,
+            req.user!.id,
+            items,
+            note,
+        );
+
+        try {
+            await writeAuditLog(
+                req.user!.id, AuditLog.SALE_VOIDED, 'sale_return', result.id,
+                undefined,
+                { sale_id: req.params.id, item_count: items.length },
+            );
+        } catch (err) {
+            logger.error('Audit log failed for return on sale %s: %o', req.params.id, err);
+        }
+
+        res.status(201).json({ code: CODES.SALE_RETURN_PROCESSED, data: result });
+    } catch (err) { next(err); }
+}
+
+export async function verifyPaymentController(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+        const { sale, confirmed, paystackStatus, message } = await SalesService.verifyPayment(
+            req.params.id,
+            req.user!.id,
+        );
+
+        if (confirmed) {
+            try {
+                await writeAuditLog(
+                    req.user!.id, AuditLog.SALE_PAYMENT_CONFIRMED, 'sale', sale.id,
+                    undefined,
+                    { sale_number: sale.sale_number, paystack_status: paystackStatus },
+                );
+            } catch (err) {
+                logger.error('Audit log failed for payment confirm on sale %s: %s', sale.id, (err as Error).message);
+            }
+            res.json({ code: CODES.PAYMENT_CONFIRMED, message, data: sale });
+        } else {
+            res.json({ code: CODES.PAYMENT_STILL_PENDING, message, data: { sale, paystackStatus } });
+        }
     } catch (err) { next(err); }
 }

@@ -15,8 +15,8 @@ export default class ProductVariant extends BaseModel {
     created_at!: string;
     updated_at?: string;
 
-    product?: unknown;
-    optionValues?: unknown[];
+    product?: { id: string; name: string };
+    optionValues?: Array<{ id: string; option_type_id: string; value: string; optionType?: { id: string; name: string } }>;
 
     static get relationMappings(): ReturnType<RelationMappingsThunk> {
         const Product = require('./Product').default;

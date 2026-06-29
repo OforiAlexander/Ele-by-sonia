@@ -25,7 +25,7 @@ export async function createTestProduct(overrides: Partial<{
 }> = {}, userId: string) {
     const [product] = await knex('products').insert({
         name: overrides.name ?? `Align Product ${Date.now()}`,
-        category: overrides.category ?? 'Test Category',
+        category: overrides.category ?? 'Shoes',
         brand: null,
         description: null,
         created_by: userId,
@@ -35,9 +35,9 @@ export async function createTestProduct(overrides: Partial<{
 
 /** Delete a product and cascade dependants. */
 export async function cleanupTestProduct(productId: string) {
-    await knex('variant_option_values')
-        .whereIn('variant_id', knex('product_variants').where({ product_id: productId }).select('id'))
-        .delete();
+    const variantIds = knex('product_variants').where({ product_id: productId }).select('id');
+    await knex('stock_entries').whereIn('variant_id', variantIds).delete();
+    await knex('variant_option_values').whereIn('variant_id', variantIds).delete();
     await knex('product_variants').where({ product_id: productId }).delete();
     await knex('product_option_values')
         .whereIn('option_type_id', knex('product_option_types').where({ product_id: productId }).select('id'))

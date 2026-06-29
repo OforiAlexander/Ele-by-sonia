@@ -14,6 +14,11 @@ const OWNER_EMAIL = 'prod-owner@example.com';
 const VIEWER_EMAIL = 'prod-viewer@example.com';
 const PASS = 'TestPass123!';
 
+const FAKE_PNG = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    'base64',
+);
+
 let viewerRoleId: string;
 let createdProductId: string;
 
@@ -50,17 +55,17 @@ afterAll(async () => {
 
 describe('POST /api/products', () => {
     it('returns 401 when not logged in', async () => {
-        expect((await request(app).post('/api/products').send({ name: 'X', category: 'tops' })).status).toBe(401);
+        expect((await request(app).post('/api/products').send({ name: 'X', category: 'Shoes' })).status).toBe(401);
     });
 
     it('returns 403 when user lacks can_create_products', async () => {
         const s = await login(VIEWER_EMAIL);
-        expect((await s.post('/api/products').send({ name: 'X', category: 'tops' })).status).toBe(403);
+        expect((await s.post('/api/products').send({ name: 'X', category: 'Shoes' })).status).toBe(403);
     });
 
     it('returns 422 when name is missing', async () => {
         const s = await login(OWNER_EMAIL);
-        expect((await s.post('/api/products').send({ category: 'tops' })).status).toBe(422);
+        expect((await s.post('/api/products').send({ category: 'Shoes' })).status).toBe(422);
     });
 
     it('returns 422 when category is missing', async () => {
@@ -68,17 +73,27 @@ describe('POST /api/products', () => {
         expect((await s.post('/api/products').send({ name: 'Test Product A' })).status).toBe(422);
     });
 
+    it('returns 422 when images are missing', async () => {
+        const s = await login(OWNER_EMAIL);
+        const res = await s
+            .post('/api/products')
+            .field('name', 'Test Product No Image')
+            .field('category', 'Shoes');
+        expect(res.status).toBe(422);
+    });
+
     it('returns 201 and creates the product', async () => {
         const s = await login(OWNER_EMAIL);
-        const res = await s.post('/api/products').send({
-            name: 'Test Product A',
-            category: 'tops',
-            brand: 'Elegance',
-            description: 'A nice top',
-        });
+        const res = await s
+            .post('/api/products')
+            .field('name', 'Test Product A')
+            .field('category', 'Shoes')
+            .field('brand', 'Elegance')
+            .field('description', 'A nice top')
+            .attach('images', FAKE_PNG, { filename: 'test.png', contentType: 'image/png' });
         expect(res.status).toBe(201);
         expect(res.body.data.name).toBe('Test Product A');
-        expect(res.body.data.category).toBe('tops');
+        expect(res.body.data.category).toBe('Shoes');
         expect(res.body.data.brand).toBe('Elegance');
         expect(res.body.data.is_active).toBe(true);
         createdProductId = res.body.data.id;
@@ -159,7 +174,7 @@ describe('PUT /api/products/:id', () => {
 
     it('returns 422 when name is missing', async () => {
         const s = await login(OWNER_EMAIL);
-        expect((await s.put(`/api/products/${createdProductId}`).send({ category: 'bottoms' })).status).toBe(422);
+        expect((await s.put(`/api/products/${createdProductId}`).send({ category: 'Bags' })).status).toBe(422);
     });
 
     it('returns 422 when category is missing', async () => {
@@ -171,12 +186,12 @@ describe('PUT /api/products/:id', () => {
         const s = await login(OWNER_EMAIL);
         const res = await s.put(`/api/products/${createdProductId}`).send({
             name: 'Test Product A Updated',
-            category: 'bottoms',
+            category: 'Bags',
             brand: 'Sconia',
         });
         expect(res.status).toBe(200);
         expect(res.body.data.name).toBe('Test Product A Updated');
-        expect(res.body.data.category).toBe('bottoms');
+        expect(res.body.data.category).toBe('Bags');
     });
 });
 

@@ -24,6 +24,7 @@ let mValueId: string;
 let lValueId: string;
 let blackValueId: string;
 let whiteValueId: string;
+let ownerId: string;
 
 // Created during tests
 let materialTypeId: string;
@@ -58,7 +59,7 @@ beforeAll(async () => {
     await createTestUser({ email: VIEWER_EMAIL, password: PASS });
     await knex('users').where({ email: VIEWER_EMAIL }).update({ role_id: viewerRoleId });
 
-    const ownerId = (await knex('users').where({ email: OWNER_EMAIL }).select('id').first()).id;
+    ownerId = (await knex('users').where({ email: OWNER_EMAIL }).select('id').first()).id;
 
     // Main test product
     const [p1] = await knex('products')
@@ -118,6 +119,11 @@ describe('POST /api/variants/option-types', () => {
         expect((await s.post('/api/variants/option-types').send({ name: 'Material' })).status).toBe(422);
     });
 
+    it('returns 422 when product_id is not a UUID', async () => {
+        const s = await login(OWNER_EMAIL);
+        expect((await s.post('/api/variants/option-types').send({ product_id: 'not-a-uuid', name: 'Material' })).status).toBe(422);
+    });
+
     it('returns 422 when name is missing', async () => {
         const s = await login(OWNER_EMAIL);
         expect((await s.post('/api/variants/option-types').send({ product_id: testProductId })).status).toBe(422);
@@ -163,6 +169,11 @@ describe('GET /api/variants/option-types', () => {
     it('returns 422 when productId query param is missing', async () => {
         const s = await login(OWNER_EMAIL);
         expect((await s.get('/api/variants/option-types')).status).toBe(422);
+    });
+
+    it('returns 422 when productId is not a UUID', async () => {
+        const s = await login(OWNER_EMAIL);
+        expect((await s.get('/api/variants/option-types?productId=not-a-uuid')).status).toBe(422);
     });
 
     it('returns 404 when product does not exist', async () => {
@@ -237,6 +248,11 @@ describe('POST /api/variants', () => {
     it('returns 422 when product_id is missing', async () => {
         const s = await login(OWNER_EMAIL);
         expect((await s.post('/api/variants').send({ cost_price: 10, selling_price: 20, optionValueIds: [] })).status).toBe(422);
+    });
+
+    it('returns 422 when product_id is not a UUID', async () => {
+        const s = await login(OWNER_EMAIL);
+        expect((await s.post('/api/variants').send({ product_id: 'not-a-uuid', cost_price: 10, selling_price: 20, optionValueIds: [] })).status).toBe(422);
     });
 
     it('returns 422 when cost_price is missing', async () => {
@@ -319,6 +335,11 @@ describe('GET /api/variants', () => {
         expect((await s.get('/api/variants')).status).toBe(422);
     });
 
+    it('returns 422 when productId is not a UUID', async () => {
+        const s = await login(OWNER_EMAIL);
+        expect((await s.get('/api/variants?productId=not-a-uuid')).status).toBe(422);
+    });
+
     it('returns 404 when product does not exist', async () => {
         const s = await login(OWNER_EMAIL);
         expect((await s.get('/api/variants?productId=00000000-0000-0000-0000-000000000000')).status).toBe(404);
@@ -337,11 +358,98 @@ describe('GET /api/variants', () => {
     });
 });
 
+// ─── GET /api/variants/search ─────────────────────────────────────────────────
+
+describe('GET /api/variants/search', () => {
+    it('returns 401 when not logged in', async () => {
+        expect((await request(app).get('/api/variants/search')).status).toBe(401);
+    });
+
+    it('returns 403 when user lacks can_view_variants', async () => {
+        const { user: plain } = await createTestUser({ email: 'var-plain3@example.com', password: PASS });
+        const s = await login('var-plain3@example.com');
+        expect((await s.get('/api/variants/search')).status).toBe(403);
+        await knex('audit_logs').where({ user_id: plain.id }).delete();
+        await knex('users').where({ id: plain.id }).delete();
+    });
+
+    it('returns 200 with empty array when no variants match', async () => {
+        const s = await login(OWNER_EMAIL);
+        const res = await s.get('/api/variants/search?q=XYZNONEXISTENT999');
+        expect(res.status).toBe(200);
+        expect(Array.isArray(res.body.data)).toBe(true);
+        expect(res.body.data).toHaveLength(0);
+    });
+
+    it('returns 200 with all active variants when no query provided', async () => {
+        const s = await login(OWNER_EMAIL);
+        const res = await s.get('/api/variants/search');
+        expect(res.status).toBe(200);
+        expect(Array.isArray(res.body.data)).toBe(true);
+    });
+
+    it('matches by SKU', async () => {
+        const s = await login(OWNER_EMAIL);
+        const res = await s.get('/api/variants/search?q=VAR-SKU-001');
+        expect(res.status).toBe(200);
+        expect(Array.isArray(res.body.data)).toBe(true);
+        const found = res.body.data.find((v: any) => v.sku === 'VAR-SKU-001');
+        expect(found).toBeDefined();
+    });
+
+    it('matches by product name', async () => {
+        const s = await login(OWNER_EMAIL);
+        const res = await s.get('/api/variants/search?q=Var+Test');
+        expect(res.status).toBe(200);
+        expect(Array.isArray(res.body.data)).toBe(true);
+        expect(res.body.data.length).toBeGreaterThan(0);
+        const first = res.body.data[0];
+        expect(first.product_name).toBeDefined();
+        expect(first.id).toBeDefined();
+    });
+
+    it('each result includes product_name and optionValues', async () => {
+        const s = await login(OWNER_EMAIL);
+        const res = await s.get('/api/variants/search?q=Var+Test');
+        expect(res.status).toBe(200);
+        for (const v of res.body.data) {
+            expect(v.product_name).toBeDefined();
+            expect(Array.isArray(v.optionValues)).toBe(true);
+        }
+    });
+
+    it('respects inStock=true filter (excludes zero-stock variants)', async () => {
+        const s = await login(OWNER_EMAIL);
+        const res = await s.get('/api/variants/search?inStock=true');
+        expect(res.status).toBe(200);
+        for (const v of res.body.data) {
+            expect(v.stock).toBeGreaterThan(0);
+        }
+    });
+
+    it('respects limit parameter', async () => {
+        const s = await login(OWNER_EMAIL);
+        const res = await s.get('/api/variants/search?limit=1');
+        expect(res.status).toBe(200);
+        expect(res.body.data.length).toBeLessThanOrEqual(1);
+    });
+
+    it('returns 422 when limit exceeds maximum', async () => {
+        const s = await login(OWNER_EMAIL);
+        expect((await s.get('/api/variants/search?limit=999')).status).toBe(422);
+    });
+});
+
 // ─── GET /api/variants/:id ────────────────────────────────────────────────────
 
 describe('GET /api/variants/:id', () => {
     it('returns 401 when not logged in', async () => {
         expect((await request(app).get(`/api/variants/${createdVariantId}`)).status).toBe(401);
+    });
+
+    it('returns 422 when id is not a UUID', async () => {
+        const s = await login(OWNER_EMAIL);
+        expect((await s.get('/api/variants/not-a-uuid')).status).toBe(422);
     });
 
     it('returns 404 for unknown id', async () => {
@@ -372,6 +480,11 @@ describe('PUT /api/variants/:id', () => {
     it('returns 403 when user lacks can_update_variants', async () => {
         const s = await login(VIEWER_EMAIL);
         expect((await s.put(`/api/variants/${createdVariantId}`).send({ cost_price: 30, selling_price: 60, optionValueIds: [] })).status).toBe(403);
+    });
+
+    it('returns 422 when id is not a UUID', async () => {
+        const s = await login(OWNER_EMAIL);
+        expect((await s.put('/api/variants/not-a-uuid').send({ cost_price: 30, selling_price: 60, optionValueIds: [] })).status).toBe(422);
     });
 
     it('returns 404 for unknown id', async () => {
@@ -422,6 +535,68 @@ describe('PUT /api/variants/:id', () => {
     });
 });
 
+// ─── PATCH /api/variants/:id/status ──────────────────────────────────────────
+
+describe('PATCH /api/variants/:id/status', () => {
+    it('returns 401 when not logged in', async () => {
+        expect((await request(app).patch(`/api/variants/${createdVariantId}/status`).send({ is_active: true })).status).toBe(401);
+    });
+
+    it('returns 403 when user lacks can_update_variants', async () => {
+        const s = await login(VIEWER_EMAIL);
+        expect((await s.patch(`/api/variants/${createdVariantId}/status`).send({ is_active: true })).status).toBe(403);
+    });
+
+    it('returns 422 when id is not a UUID', async () => {
+        const s = await login(OWNER_EMAIL);
+        expect((await s.patch('/api/variants/not-a-uuid/status').send({ is_active: true })).status).toBe(422);
+    });
+
+    it('returns 422 when is_active is missing', async () => {
+        const s = await login(OWNER_EMAIL);
+        expect((await s.patch(`/api/variants/${createdVariantId}/status`).send({})).status).toBe(422);
+    });
+
+    it('returns 422 when is_active is not a boolean', async () => {
+        const s = await login(OWNER_EMAIL);
+        expect((await s.patch(`/api/variants/${createdVariantId}/status`).send({ is_active: 'yes' })).status).toBe(422);
+    });
+
+    it('returns 404 for unknown id', async () => {
+        const s = await login(OWNER_EMAIL);
+        expect((await s.patch('/api/variants/00000000-0000-0000-0000-000000000000/status').send({ is_active: true })).status).toBe(404);
+    });
+
+    it('activates an inactive variant', async () => {
+        const s = await login(OWNER_EMAIL);
+        const res = await s.patch(`/api/variants/${createdVariantId}/status`).send({ is_active: true });
+        expect(res.status).toBe(200);
+        expect(res.body.code).toBe('VARIANT_STATUS_UPDATED');
+        expect(res.body.data.is_active).toBe(true);
+    });
+
+    it('deactivates an active variant', async () => {
+        const s = await login(OWNER_EMAIL);
+        const res = await s.patch(`/api/variants/${createdVariantId}/status`).send({ is_active: false });
+        expect(res.status).toBe(200);
+        expect(res.body.data.is_active).toBe(false);
+    });
+
+    it('writes audit log with before and after is_active', async () => {
+        const log = await knex('audit_logs')
+            .where({ action: 'VARIANT_UPDATED', entity_type: 'variant', entity_id: createdVariantId })
+            .orderBy('created_at', 'desc')
+            .first();
+        expect(log).toBeDefined();
+        expect(log.before.is_active).toBeDefined();
+        expect(log.after.is_active).toBeDefined();
+    });
+
+    afterAll(async () => {
+        // Leave createdVariantId as is_active=false (stock=0) so it can be deleted without guards
+    });
+});
+
 // ─── DELETE /api/variants/:id ─────────────────────────────────────────────────
 
 describe('DELETE /api/variants/:id', () => {
@@ -434,9 +609,59 @@ describe('DELETE /api/variants/:id', () => {
         expect((await s.delete(`/api/variants/${createdVariantId}`)).status).toBe(403);
     });
 
+    it('returns 422 when id is not a UUID', async () => {
+        const s = await login(OWNER_EMAIL);
+        expect((await s.delete('/api/variants/not-a-uuid')).status).toBe(422);
+    });
+
     it('returns 404 for unknown id', async () => {
         const s = await login(OWNER_EMAIL);
         expect((await s.delete('/api/variants/00000000-0000-0000-0000-000000000000')).status).toBe(404);
+    });
+
+    it('returns 400 when variant has remaining stock', async () => {
+        await knex('product_variants').where({ id: createdVariantId }).update({ stock: 5 });
+        const s = await login(OWNER_EMAIL);
+        const res = await s.delete(`/api/variants/${createdVariantId}`);
+        expect(res.status).toBe(400);
+        expect(res.body.code).toBe('STOCK_REMAINING');
+        await knex('product_variants').where({ id: createdVariantId }).update({ stock: 0 });
+    });
+
+    it('returns 409 when variant has been sold', async () => {
+        const [sale] = await knex('sales').insert({
+            sale_number: 'VAR-TEST-SALE-001',
+            staff_id: ownerId,
+            payment_method: 'cash',
+            payment_status: 'paid',
+            amount_due: 50,
+        }).returning('id');
+        await knex('sale_items').insert({
+            sale_id: sale.id,
+            variant_id: createdVariantId,
+            quantity: 1,
+            unit_price: 50,
+            line_total: 50,
+            cost_price_snapshot: 25,
+        });
+        const s = await login(OWNER_EMAIL);
+        const res = await s.delete(`/api/variants/${createdVariantId}`);
+        expect(res.status).toBe(409);
+        expect(res.body.code).toBe('IN_USE');
+        await knex('sale_items').where({ variant_id: createdVariantId }).delete();
+        await knex('sales').where({ id: sale.id }).delete();
+    });
+
+    it('removes stock_entries when variant is deleted', async () => {
+        const [tmp] = await knex('product_variants')
+            .insert({ product_id: testProductId, cost_price: 5, selling_price: 10, stock: 0, low_stock_threshold: 5, is_active: true })
+            .returning('id');
+        await knex('stock_entries').insert({ variant_id: tmp.id, quantity: 10, created_by: ownerId });
+        const s = await login(OWNER_EMAIL);
+        const res = await s.delete(`/api/variants/${tmp.id}`);
+        expect(res.status).toBe(200);
+        const entries = await knex('stock_entries').where({ variant_id: tmp.id });
+        expect(entries).toHaveLength(0);
     });
 
     it('returns 200 and permanently deletes the variant and its option value links', async () => {

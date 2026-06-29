@@ -26,6 +26,8 @@ export interface CurrentUser {
   can_discount_sales?: boolean;
   can_void_sales?: boolean;
   can_return_sales?: boolean;
+  can_override_price?: boolean;
+  can_verify_payment?: boolean;
   can_view_staff?: boolean;
   can_create_staff?: boolean;
   can_update_staff?: boolean;
@@ -38,6 +40,15 @@ export interface CurrentUser {
   can_export_reports?: boolean;
   can_view_settings?: boolean;
   can_update_settings?: boolean;
+  can_view_categories?: boolean;
+  can_manage_categories?: boolean;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at?: string;
 }
 
 export interface ApiResponse<T = unknown> {
@@ -62,13 +73,51 @@ export interface PaginatedSales {
   limit: number;
 }
 
+export interface ProductImage {
+  id: string;
+  image_path: string;
+  sort_order: number;
+}
+
+export interface ProductOptionValue {
+  id: string;
+  option_type_id: string;
+  value: string;
+}
+
+export interface ProductOptionType {
+  id: string;
+  product_id: string;
+  name: string;
+  values: ProductOptionValue[];
+}
+
+export interface StockEntry {
+  id: string;
+  variant_id: string;
+  quantity: number;
+  note: string | null;
+  created_at: string;
+  createdByUser: { id: string; name: string };
+}
+
 export interface Product {
   id: string;
   name: string;
   category: string;
   brand: string | null;
   description: string | null;
+  is_active: boolean;
   created_at: string;
+  variants?: ProductVariant[];
+  images?: ProductImage[];
+}
+
+export interface ProductVariantOptionValue {
+  id: string;
+  option_type_id: string;
+  value: string;
+  optionType?: { id: string; name: string };
 }
 
 export interface ProductVariant {
@@ -81,10 +130,23 @@ export interface ProductVariant {
   low_stock_threshold: number;
   is_active: boolean;
   created_at: string;
-  options?: Array<{ type: string; value: string }>;
+  optionValues?: ProductVariantOptionValue[];
 }
 
-// Cart item held in POS page state (frontend-only, never sent to backend)
+export interface SearchVariantResult {
+  id: string;
+  product_id: string;
+  product_name: string;
+  sku: string | null;
+  cost_price: string;
+  selling_price: string;
+  stock: number;
+  low_stock_threshold: number;
+  is_active: boolean;
+  created_at: string;
+  optionValues: ProductVariantOptionValue[];
+}
+
 export interface CartItem {
   variantId: string;
   productName: string;
@@ -93,27 +155,85 @@ export interface CartItem {
   quantity: number;
 }
 
-// Shape of a completed sale returned by POST /api/sales and GET /api/sales/:id
+export interface SaleLineItem {
+  id: string;
+  sale_id: string;
+  variant_id: string;
+  quantity: number;
+  unit_price: string;
+  line_total: string;
+  cost_price_snapshot: string;
+  original_price?: string | null;
+  price_override?: string | null;
+  variant?: { id: string; sku: string | null; product_id: string; product_name?: string };
+}
+
 export interface Sale {
   id: string;
   sale_number: string;
-  payment_method: 'cash' | 'momo';
+  payment_method: 'cash' | 'momo' | 'split';
   payment_status: string;
   amount_due: string;
   amount_tendered: string | null;
   change_given: string | null;
   discount: string;
+  levy_amount?: string;
+  vat_amount?: string;
+  nhil_amount?: string;
+  getfund_amount?: string;
+  covid_levy_amount?: string;
+  voided_at?: string | null;
   created_at: string;
+  customer_phone?: string | null;
+  paystack_reference?: string | null;
+  momo_provider?: string | null;
+  items?: SaleLineItem[];
+  staff?: { id: string; name: string };
 }
 
-export interface Setting {
+export interface TransactionStats {
+  totalCount:   number;
+  cashTotal:    number;
+  momoTotal:    number;
+  pendingTotal: number;
+}
+
+export interface PosCartItem {
+  variantId: string;
+  productName: string;
+  variantLabel: string;
+  sku: string | null;
+  originalPrice: number;
+  price: number;
+  quantity: number;
+  unitPriceOverride: number | null;
+}
+
+// Held sale saved to localStorage
+export interface HeldCart {
+  id: string;
+  label: string;
+  items: PosCartItem[];
+  savedAt: number;
+}
+
+export interface AppSetting {
   id: string;
   name: string;
   label: string;
   value: string;
   group: string;
   editable: boolean;
+  type: 'string' | 'textarea' | 'boolean' | 'number' | 'time' | 'enum';
+  unit: string | null;
+  hint: string | null;
+  options: string[] | null;
+  min: number | null;
+  max: number | null;
+  restart_required: boolean;
 }
+
+export type PublicSettings = Record<string, string>;
 
 export interface StockHealthData {
   healthy:        number;
@@ -156,4 +276,24 @@ export interface Role {
   id:           string;
   name:         string;
   permissions?: Permission[];
+}
+
+export interface AppNotification {
+  id:         string;
+  user_id:    string;
+  type:       string;
+  title:      string;
+  body:       string | null;
+  data:       Record<string, unknown> | null;
+  read_at:    string | null;
+  created_at: string;
+}
+
+export interface ImportResult {
+  productsCreated: number;
+  variantsCreated: number;
+  skipped:         number;
+  errors:          number;
+  errorDetails:    Array<{ row: number; product_name: string; reason: string }>;
+  skippedDetails:  Array<{ row: number; product_name: string; reason: string }>;
 }

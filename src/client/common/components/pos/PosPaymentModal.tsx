@@ -1,0 +1,445 @@
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import {
+    Modal, Stack, Group, Button, Text, Tabs, NumberInput,
+    TextInput, Badge, Loader, Center,
+} from '@mantine/core';
+import { Formik, Form, Field, FieldProps } from 'formik';
+import * as Yup from 'yup';
+import api from '../../api';
+import type { PosCartItem, PublicSettings, Sale } from '../../types';
+import { t } from '../../translations';
+import { KEYS } from '../../keys';
+import { formatPrice } from '../../utils/formatCurrency';
+import { MTN_PREFIXES, VOD_PREFIXES, ATL_PREFIXES } from '../../constants/momoProviders';
+
+const MOMO_POLL_MS = 3_000;
+import { showError } from '../../utils/swal';
+
+type MomoProvider = 'mtn' | 'vod' | 'atl';
+type ModalStep = 'select' | 'submitting' | 'momo_pending' | 'done';
+
+interface Props {
+    opened:         boolean;
+    onClose:        () => void;
+    cartItems:      PosCartItem[];
+    manualDiscount: number;
+    cartTotal:      number;
+    canDiscount:    boolean;
+    publicSettings: PublicSettings;
+    onComplete:     (sale: Sale) => void;
+}
+
+function detectProvider(phone: string): MomoProvider | null {
+    const clean = phone.replace(/[\s\-()]/g, '');
+    let norm = clean;
+    if (norm.startsWith('+233')) norm = '0' + norm.slice(4);
+    else if (norm.startsWith('233')) norm = '0' + norm.slice(3);
+    if (MTN_PREFIXES.some((p) => norm.startsWith(p))) return 'mtn';
+    if (VOD_PREFIXES.some((p) => norm.startsWith(p))) return 'vod';
+    if (ATL_PREFIXES.some((p) => norm.startsWith(p))) return 'atl';
+    return null;
+}
+
+function providerLabel(p: MomoProvider | null): string {
+    if (p === 'mtn') return t(KEYS.pos.payment.mtn);
+    if (p === 'vod') return t(KEYS.pos.payment.vod);
+    if (p === 'atl') return t(KEYS.pos.payment.atl);
+    return t(KEYS.pos.payment.unknownNetwork);
+}
+
+function providerColor(p: MomoProvider | null): string {
+    if (p === 'mtn') return 'yellow';
+    if (p === 'vod') return 'red';
+    if (p === 'atl') return 'blue';
+    return 'gray';
+}
+
+const PosPaymentModal: React.FC<Props> = ({
+    opened, onClose, cartItems, manualDiscount, cartTotal, canDiscount, publicSettings, onComplete,
+}) => {
+    const splitEnabled   = publicSettings['SPLIT_TENDER_ENABLED']            === 'true';
+    const requirePhone   = publicSettings['REQUIRE_CUSTOMER_PHONE_FOR_MOMO'] !== 'false';
+    const momoPromptText = publicSettings['MOMO_PROMPT_CUSTOMER_TEXT']       ?? '';
+    const currencySymbol = publicSettings['CURRENCY_SYMBOL']                 ?? '₵';
+    const fmt = (v: number | string) => formatPrice(v, currencySymbol);
+
+    const [tab, setTab]   = useState<string>('cash');
+    const [step, setStep] = useState<ModalStep>('select');
+    const [pendingSale, setPendingSale]   = useState<Sale | null>(null);
+    const [detectedProvider, setDetected] = useState<MomoProvider | null>(null);
+    const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    useEffect(() => {
+        if (!opened) {
+            setTab('cash');
+            setStep('select');
+            setPendingSale(null);
+            setDetected(null);
+            if (pollRef.current) clearInterval(pollRef.current);
+        }
+    }, [opened]);
+
+    useEffect(() => {
+        if (step !== 'momo_pending' || !pendingSale) return;
+
+        pollRef.current = setInterval(async () => {
+            try {
+                const res = await api.get(`/sales/${pendingSale.id}`);
+                const sale: Sale = res.data.data;
+                if (sale.payment_status === 'paid') {
+                    clearInterval(pollRef.current!);
+                    setStep('done');
+                    setPendingSale(sale);
+                } else if (sale.payment_status === 'failed') {
+                    clearInterval(pollRef.current!);
+                    setStep('select');
+                    showError(t(KEYS.pos.payment.failed), t(KEYS.pos.payment.failedHint));
+                }
+            } catch { /* network blip — keep polling */ }
+        }, MOMO_POLL_MS);
+
+        return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    }, [step, pendingSale]);
+
+    const cashSchema = useMemo(() => Yup.object({
+        amount_tendered: Yup.number()
+            .required(t(KEYS.pos.validation.tenderRequired))
+            .min(cartTotal, t(KEYS.pos.validation.tenderMin)),
+    }), [cartTotal]);
+
+    const momoSchema = useMemo(() => {
+        const phoneRule = requirePhone
+            ? Yup.string().required(t(KEYS.pos.validation.phoneRequired)).min(10, t(KEYS.pos.validation.phoneMin))
+            : Yup.string().min(10, t(KEYS.pos.validation.phoneMin));
+        return Yup.object({ customer_phone: phoneRule });
+    }, [requirePhone]);
+
+    const splitSchema = useMemo(() => Yup.object({
+        cash_split_amount: Yup.number()
+            .required(t(KEYS.pos.validation.splitCashRequired))
+            .min(0.01, t(KEYS.pos.validation.splitCashRequired))
+            .max(cartTotal - 0.01, t(KEYS.pos.validation.splitCashMax)),
+        customer_phone: requirePhone
+            ? Yup.string().required(t(KEYS.pos.validation.phoneRequired)).min(10, t(KEYS.pos.validation.phoneMin))
+            : Yup.string().min(10, t(KEYS.pos.validation.phoneMin)),
+    }), [cartTotal, requirePhone]);
+
+    const buildItems = () => cartItems.map((i) => ({
+        variant_id: i.variantId,
+        quantity:   i.quantity,
+        ...(i.unitPriceOverride !== null ? { unit_price_override: i.unitPriceOverride } : {}),
+    }));
+
+    const handleSaleError = (err: any) => {
+        setStep('select');
+        const code: string | undefined = err?.response?.data?.code;
+        const serverMessage: string | undefined = err?.response?.data?.message;
+        const SURFACED_CODES = new Set(['STOCK_INSUFFICIENT', 'VARIANT_INACTIVE', 'AMOUNT_INSUFFICIENT', 'FORBIDDEN', 'SPLIT_TENDER_DISABLED']);
+        if (code && SURFACED_CODES.has(code) && serverMessage) {
+            showError(t(KEYS.common.error), serverMessage);
+        } else {
+            showError(t(KEYS.common.error), t(KEYS.pos.toast.saleError));
+        }
+    };
+
+    const submitCash = async (values: { amount_tendered: number }) => {
+        setStep('submitting');
+        try {
+            const res = await api.post('/sales', {
+                payment_method:  'cash',
+                amount_tendered: values.amount_tendered,
+                discount:        canDiscount ? manualDiscount : 0,
+                items:           buildItems(),
+            });
+            const sale: Sale = res.data.data;
+            setPendingSale(sale);
+            setStep('done');
+        } catch (err: any) {
+            handleSaleError(err);
+        }
+    };
+
+    const submitMomo = async (values: { customer_phone: string }) => {
+        if (requirePhone && !values.customer_phone) {
+            showError(t(KEYS.common.error), t(KEYS.pos.validation.phoneRequired));
+            return;
+        }
+        const provider = values.customer_phone ? detectProvider(values.customer_phone) : null;
+        if (values.customer_phone && !provider) {
+            showError(t(KEYS.common.error), t(KEYS.pos.validation.phoneMin));
+            return;
+        }
+        setStep('submitting');
+        try {
+            const res = await api.post('/sales', {
+                payment_method: 'momo',
+                customer_phone: values.customer_phone || undefined,
+                momo_provider:  provider ?? undefined,
+                discount:       canDiscount ? manualDiscount : 0,
+                items:          buildItems(),
+            });
+            const sale: Sale = res.data.data;
+            setPendingSale(sale);
+            setStep('momo_pending');
+        } catch (err: any) {
+            handleSaleError(err);
+        }
+    };
+
+    const submitSplit = async (values: { cash_split_amount: number; customer_phone: string }) => {
+        if (requirePhone && !values.customer_phone) {
+            showError(t(KEYS.common.error), t(KEYS.pos.validation.phoneRequired));
+            return;
+        }
+        const provider = values.customer_phone ? detectProvider(values.customer_phone) : null;
+        if (values.customer_phone && !provider) {
+            showError(t(KEYS.common.error), t(KEYS.pos.validation.phoneMin));
+            return;
+        }
+        setStep('submitting');
+        try {
+            const res = await api.post('/sales', {
+                payment_method:    'split',
+                cash_split_amount: values.cash_split_amount,
+                customer_phone:    values.customer_phone || undefined,
+                momo_provider:     provider ?? undefined,
+                discount:          canDiscount ? manualDiscount : 0,
+                items:             buildItems(),
+            });
+            const sale: Sale = res.data.data;
+            setPendingSale(sale);
+            setStep('momo_pending');
+        } catch (err: any) {
+            handleSaleError(err);
+        }
+    };
+
+    const handleDone = () => {
+        if (pendingSale) onComplete(pendingSale);
+    };
+
+    if (step === 'submitting') {
+        return (
+            <Modal opened={opened} onClose={() => {}} withCloseButton={false} centered size="sm">
+                <Center py="xl"><Loader size="md" /></Center>
+            </Modal>
+        );
+    }
+
+    if (step === 'momo_pending') {
+        const pendingText = momoPromptText || t(KEYS.pos.payment.pendingHint);
+        return (
+            <Modal opened={opened} onClose={() => {}} withCloseButton={false} centered size="sm" title={t(KEYS.pos.payment.pending)}>
+                <Stack align="center" gap="md" py="md">
+                    <Loader size="lg" color="yellow" />
+                    <Text size="sm" ta="center" c="dimmed">{pendingText}</Text>
+                    <Text fw={700} size="xl">{fmt(cartTotal)}</Text>
+                    <Text size="xs" c="dimmed">{pendingSale?.sale_number}</Text>
+                </Stack>
+            </Modal>
+        );
+    }
+
+    if (step === 'done' && pendingSale) {
+        return (
+            <Modal
+                opened={opened}
+                onClose={handleDone}
+                centered
+                size="sm"
+                title={t(KEYS.pos.receipt.title)}
+                withCloseButton={false}
+            >
+                <Stack gap="md" align="center">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2d9e52" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"/><polyline points="9 12 12 15 16 9"/>
+                    </svg>
+                    <Text fw={700} size="lg">{fmt(Number(pendingSale.amount_due))}</Text>
+                    <Text size="sm" c="dimmed">{pendingSale.sale_number}</Text>
+                    {pendingSale.change_given && Number(pendingSale.change_given) > 0 && (
+                        <Text size="sm">
+                            {t(KEYS.pos.receipt.change)}: <b>{fmt(Number(pendingSale.change_given))}</b>
+                        </Text>
+                    )}
+                </Stack>
+                <Group justify="center" mt="lg">
+                    <Button color="green" onClick={handleDone}>{t(KEYS.pos.receipt.close)}</Button>
+                </Group>
+            </Modal>
+        );
+    }
+
+    return (
+        <Modal opened={opened} onClose={onClose} centered size="md" title={t(KEYS.pos.payment.title)}>
+            <Stack gap="md">
+                <Group justify="space-between" p="xs" style={{ background: '#f8f9f5', borderRadius: 8 }}>
+                    <Text size="sm" c="dimmed">{t(KEYS.pos.payment.amountDue)}</Text>
+                    <Text size="xl" fw={800}>{fmt(cartTotal)}</Text>
+                </Group>
+
+                <Tabs value={tab} onChange={(v) => setTab(v ?? 'cash')}>
+                    <Tabs.List>
+                        <Tabs.Tab value="cash">{t(KEYS.pos.payment.cash)}</Tabs.Tab>
+                        <Tabs.Tab value="momo">{t(KEYS.pos.payment.momo)}</Tabs.Tab>
+                        {splitEnabled && (
+                            <Tabs.Tab value="split">{t(KEYS.pos.payment.split)}</Tabs.Tab>
+                        )}
+                    </Tabs.List>
+
+                    {/* ── Cash tab ──────────────────────────────────────── */}
+                    <Tabs.Panel value="cash" pt="md">
+                        <Formik
+                            initialValues={{ amount_tendered: cartTotal }}
+                            validationSchema={cashSchema}
+                            onSubmit={(v) => submitCash(v)}
+                        >
+                            {({ values, errors, touched, setFieldValue, isSubmitting }) => {
+                                const change = Math.max(0, (values.amount_tendered ?? 0) - cartTotal);
+                                return (
+                                    <Form>
+                                        <Stack gap="md">
+                                            <Field name="amount_tendered">
+                                                {({ field }: FieldProps) => (
+                                                    <NumberInput
+                                                        label={t(KEYS.pos.payment.amountTendered)}
+                                                        prefix="₵"
+                                                        min={0}
+                                                        decimalScale={2}
+                                                        fixedDecimalScale
+                                                        value={field.value}
+                                                        onChange={(v) => setFieldValue('amount_tendered', v)}
+                                                        error={touched.amount_tendered && errors.amount_tendered}
+                                                        autoFocus
+                                                    />
+                                                )}
+                                            </Field>
+                                            <Group justify="space-between" style={{ background: '#f0faf4', borderRadius: 8, padding: '10px 14px' }}>
+                                                <Text size="sm">{t(KEYS.pos.payment.change)}</Text>
+                                                <Text fw={700} c="green">{fmt(change)}</Text>
+                                            </Group>
+                                            <Group justify="flex-end">
+                                                <Button variant="subtle" color="gray" onClick={onClose}>{t(KEYS.pos.payment.cancel)}</Button>
+                                                <Button type="submit" color="green" loading={isSubmitting}>{t(KEYS.pos.payment.confirm)}</Button>
+                                            </Group>
+                                        </Stack>
+                                    </Form>
+                                );
+                            }}
+                        </Formik>
+                    </Tabs.Panel>
+
+                    {/* ── Momo tab ──────────────────────────────────────── */}
+                    <Tabs.Panel value="momo" pt="md">
+                        <Formik
+                            initialValues={{ customer_phone: '' }}
+                            validationSchema={momoSchema}
+                            onSubmit={(v) => submitMomo(v)}
+                        >
+                            {({ values, errors, touched, isSubmitting }) => {
+                                const provider = detectProvider(values.customer_phone);
+                                return (
+                                    <Form>
+                                        <Stack gap="md">
+                                            <Field name="customer_phone">
+                                                {({ field }: FieldProps) => (
+                                                    <TextInput
+                                                        {...field}
+                                                        label={t(KEYS.pos.payment.phone)}
+                                                        placeholder={t(KEYS.pos.payment.phonePlaceholder)}
+                                                        error={touched.customer_phone && errors.customer_phone}
+                                                        autoFocus
+                                                        rightSection={
+                                                            values.customer_phone.length >= 10 ? (
+                                                                <Badge size="sm" color={providerColor(provider)}>
+                                                                    {providerLabel(provider)}
+                                                                </Badge>
+                                                            ) : undefined
+                                                        }
+                                                        rightSectionWidth={100}
+                                                    />
+                                                )}
+                                            </Field>
+                                            <Text size="xs" c="dimmed">
+                                                {momoPromptText || t(KEYS.pos.payment.pendingHint)}
+                                            </Text>
+                                            <Group justify="flex-end">
+                                                <Button variant="subtle" color="gray" onClick={onClose}>{t(KEYS.pos.payment.cancel)}</Button>
+                                                <Button type="submit" color="yellow" loading={isSubmitting}>{t(KEYS.pos.payment.confirm)}</Button>
+                                            </Group>
+                                        </Stack>
+                                    </Form>
+                                );
+                            }}
+                        </Formik>
+                    </Tabs.Panel>
+
+                    {/* ── Split tab (shown only when setting is enabled) ─ */}
+                    {splitEnabled && (
+                        <Tabs.Panel value="split" pt="md">
+                            <Formik
+                                initialValues={{ cash_split_amount: 0, customer_phone: '' }}
+                                validationSchema={splitSchema}
+                                onSubmit={(v) => submitSplit(v)}
+                            >
+                                {({ values, errors, touched, setFieldValue, isSubmitting }) => {
+                                    const momoAmount = Math.max(0, cartTotal - (values.cash_split_amount ?? 0));
+                                    const provider   = detectProvider(values.customer_phone);
+                                    return (
+                                        <Form>
+                                            <Stack gap="md">
+                                                <Field name="cash_split_amount">
+                                                    {({ field }: FieldProps) => (
+                                                        <NumberInput
+                                                            label={t(KEYS.pos.payment.splitCashLabel)}
+                                                            prefix="₵"
+                                                            min={0}
+                                                            max={cartTotal}
+                                                            decimalScale={2}
+                                                            fixedDecimalScale
+                                                            value={field.value}
+                                                            onChange={(v) => setFieldValue('cash_split_amount', v)}
+                                                            error={touched.cash_split_amount && errors.cash_split_amount}
+                                                            autoFocus
+                                                        />
+                                                    )}
+                                                </Field>
+                                                <Group justify="space-between" style={{ background: '#fef9f0', borderRadius: 8, padding: '10px 14px' }}>
+                                                    <Text size="sm">{t(KEYS.pos.payment.splitMomoLabel)}</Text>
+                                                    <Text fw={700} c="yellow.7">{fmt(momoAmount)}</Text>
+                                                </Group>
+                                                <Field name="customer_phone">
+                                                    {({ field }: FieldProps) => (
+                                                        <TextInput
+                                                            {...field}
+                                                            label={t(KEYS.pos.payment.phone)}
+                                                            placeholder={t(KEYS.pos.payment.phonePlaceholder)}
+                                                            error={touched.customer_phone && errors.customer_phone}
+                                                            rightSection={
+                                                                values.customer_phone.length >= 10 ? (
+                                                                    <Badge size="sm" color={providerColor(provider)}>
+                                                                        {providerLabel(provider)}
+                                                                    </Badge>
+                                                                ) : undefined
+                                                            }
+                                                            rightSectionWidth={100}
+                                                        />
+                                                    )}
+                                                </Field>
+                                                <Group justify="flex-end">
+                                                    <Button variant="subtle" color="gray" onClick={onClose}>{t(KEYS.pos.payment.cancel)}</Button>
+                                                    <Button type="submit" color="orange" loading={isSubmitting}>{t(KEYS.pos.payment.confirm)}</Button>
+                                                </Group>
+                                            </Stack>
+                                        </Form>
+                                    );
+                                }}
+                            </Formik>
+                        </Tabs.Panel>
+                    )}
+                </Tabs>
+            </Stack>
+        </Modal>
+    );
+};
+
+export default PosPaymentModal;

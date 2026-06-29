@@ -5,12 +5,14 @@ import cors from 'cors';
 import session from 'express-session';
 import RedisStore from 'connect-redis';
 import rateLimit from 'express-rate-limit';
-import { escape, trim } from 'validator';
+import { trim } from 'validator';
+import logger from './services/logger';
 
 import redisClient from './services/redis/client';
 import { errorHandler } from './middleware/errorHandler';
 import { notFound } from './middleware/notFound';
 import apiRoutes from './routes/api';
+import paystackWebhook from './routes/webhooks/paystack';
 
 if (!process.env.BASE_URL) throw new Error('BASE_URL is not set');
 if (!process.env.SESSION_SECRET) throw new Error('SESSION_SECRET is not set');
@@ -19,7 +21,7 @@ const BASE_URL = process.env.BASE_URL;
 const SESSION_SECRET = process.env.SESSION_SECRET;
 
 function sanitiseValue(val: unknown): unknown {
-    if (typeof val === 'string') return escape(trim(val));
+    if (typeof val === 'string') return trim(val);
     if (Array.isArray(val)) return val.map(sanitiseValue);
     if (val !== null && typeof val === 'object') {
         return Object.fromEntries(
@@ -29,8 +31,60 @@ function sanitiseValue(val: unknown): unknown {
     return val;
 }
 
-export function createApp() {
+const SLOW_REQUEST_MS = 1000;
+
+// Paths that generate too much noise to log individually
+const SILENT_PREFIXES = ['/uploads/', '/account/', '/inventory/'];
+const SILENT_EXTENSIONS = /\.(js|css|ico|png|jpg|jpeg|svg|woff2?|ttf|map)$/i;
+
+function statusColor(code: number): string {
+    if (code >= 500) return '\x1b[31m';   // red
+    if (code >= 400) return '\x1b[33m';   // yellow
+    if (code >= 300) return '\x1b[36m';   // cyan
+    return '\x1b[32m';                     // green
+}
+const RESET = '\x1b[0m';
+const DIM   = '\x1b[2m';
+const BOLD  = '\x1b[1m';
+
+function requestLoggerMiddleware(req: Request, res: Response, next: NextFunction): void {
+    const start = process.hrtime.bigint();
+
+    const originalEnd = res.end.bind(res) as typeof res.end;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (res as any).end = (...args: Parameters<typeof res.end>) => {
+        const ms      = Number(process.hrtime.bigint() - start) / 1_000_000;
+        const rounded = Math.round(ms);
+
+        if (!res.headersSent) {
+            res.setHeader('X-Response-Time', `${rounded}ms`);
+        }
+
+        const skip =
+            SILENT_EXTENSIONS.test(req.path) ||
+            SILENT_PREFIXES.some((p) => req.path.startsWith(p));
+
+        if (!skip) {
+            const sc   = res.statusCode;
+            const col  = statusColor(sc);
+            const slow = rounded >= SLOW_REQUEST_MS ? ` ${BOLD}\x1b[33m⚠ SLOW${RESET}` : '';
+            const method = req.method.padEnd(6);
+            logger.http(`${BOLD}${method}${RESET} ${req.path} ${DIM}→${RESET} ${col}${sc}${RESET} ${DIM}${rounded}ms${RESET}${slow}`);
+        }
+
+        return originalEnd(...args);
+    };
+
+    next();
+}
+
+export function createApp(sessionMaxAgeMs?: number) {
     const app = express();
+
+    // trust proxy so secure cookies work behind Render's load balancer
+    if (process.env.NODE_ENV === 'production') app.set('trust proxy', 1);
+
+    app.use(requestLoggerMiddleware);
 
     app.use(
         helmet({
@@ -39,7 +93,12 @@ export function createApp() {
                     defaultSrc: ["'self'"],
                     scriptSrc: ["'self'", 'https://www.google.com', 'https://www.gstatic.com'],
                     styleSrc: ["'self'", "'unsafe-inline'"],
-                    imgSrc: ["'self'", 'data:', 'https://www.gstatic.com'],
+                    imgSrc: [
+                        "'self'", 'data:', 'blob:',
+                        'https://www.gstatic.com',
+                        'https://*.r2.dev',
+                        ...(process.env.R2_PUBLIC_URL ? [process.env.R2_PUBLIC_URL] : []),
+                    ],
                     frameSrc: ["'self'", 'https://www.google.com', 'https://recaptcha.net'],
                     connectSrc: ["'self'"],
                     fontSrc: ["'self'"],
@@ -49,6 +108,11 @@ export function createApp() {
         })
     );
     app.use(cors({ origin: BASE_URL, credentials: true }));
+
+    app.get('/health', (_req, res) => res.status(200).json({ status: 'ok' }));
+
+    app.use('/webhooks/paystack', express.raw({ type: 'application/json' }), paystackWebhook);
+
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
 
@@ -61,7 +125,7 @@ export function createApp() {
             cookie: {
                 secure: process.env.NODE_ENV === 'production',
                 httpOnly: true,
-                maxAge: 7 * 24 * 60 * 60 * 1000,
+                maxAge: sessionMaxAgeMs ?? 7 * 24 * 60 * 60 * 1000,
             },
         })
     );

@@ -1,50 +1,69 @@
 import ProductVariant from '../models/ProductVariant';
-import Setting from '../models/Setting';
-import { sendMail } from '../services/mail/send-mail';
+import { ensureLoaded, get } from '../startup/settingsCache';
 import { SETTINGS } from '../constants/settings';
+import { sendMail } from '../services/mail/send-mail';
+import { buildLowStockAlertHtml } from '../services/mail/templates/low-stock-alert';
+import { notifyStockAlertIfNew, NOTIF_TYPES } from '../services/notifications/notify';
+import logger from '../services/logger';
+
+function parseRecipients(raw: string): string {
+    return raw
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .join(', ');
+}
 
 export async function runLowStockAlert(): Promise<void> {
-  const alertEnabledSetting = await Setting.query().findOne({ name: SETTINGS.LOW_STOCK_ALERT_ENABLED });
-  if (alertEnabledSetting?.value !== 'true') return;
+    await ensureLoaded();
 
-  const lowVariants = await ProductVariant.query()
-    .whereRaw('stock <= low_stock_threshold')
-    .where({ is_active: true })
-    .withGraphFetched('product');
+    const alertEnabled = get(SETTINGS.LOW_STOCK_ALERT_ENABLED)?.value === 'true';
+    if (!alertEnabled) return;
 
-  if (lowVariants.length === 0) return;
+    const ownerEmail = process.env.OWNER_EMAIL;
+    if (!ownerEmail) {
+        logger.warn('[low-stock] OWNER_EMAIL not set, skipping alert');
+        return;
+    }
 
-  const ownerEmail = process.env.OWNER_EMAIL;
-  if (!ownerEmail) return;
+    const businessName = get(SETTINGS.BUSINESS_NAME)?.value ?? 'Elegance by Sconia';
+    const logoUrl      = `${process.env.BASE_URL}/images/logo.png`;
+    const extraRecipients = parseRecipients(get(SETTINGS.LOW_STOCK_ALERT_RECIPIENTS)?.value ?? '');
 
-  const rows = lowVariants
-    .map((v: any) => {
-      const productName = v.product?.name ?? 'Unknown Product';
-      return `<tr>
-        <td>${productName}</td>
-        <td>${v.size ?? '—'}</td>
-        <td>${v.colour ?? '—'}</td>
-        <td>${v.stock}</td>
-        <td>${v.low_stock_threshold}</td>
-      </tr>`;
-    })
-    .join('');
+    const lowVariants = await ProductVariant.query()
+        .whereRaw('stock <= low_stock_threshold')
+        .where({ is_active: true })
+        .withGraphFetched('product');
 
-  const html = `
-    <h2>Low Stock Alert Elegance by Sconia</h2>
-    <p>The following variants are at or below their low stock threshold:</p>
-    <table border="1" cellpadding="6">
-      <thead>
-        <tr><th>Product</th><th>Size</th><th>Colour</th><th>Stock</th><th>Threshold</th></tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <p>Please restock soon.</p>
-  `;
+    if (lowVariants.length === 0) return;
 
-  await sendMail({
-    to: ownerEmail,
-    subject: `Low Stock Alert — ${lowVariants.length} variant(s) need restocking`,
-    html,
-  });
+    const items = lowVariants.map((v: any) => ({
+        product_name: v.product?.name ?? 'Unknown Product',
+        sku:          v.sku ?? null,
+        stock:        Number(v.stock),
+        threshold:    Number(v.low_stock_threshold),
+        is_out:       Number(v.stock) <= 0,
+    }));
+
+    const html = buildLowStockAlertHtml({ businessName, logoUrl, items, generatedAt: new Date() });
+
+    await sendMail({
+        to:      ownerEmail,
+        cc:      extraRecipients || undefined,
+        subject: `Low Stock Alert — ${lowVariants.length} variant(s) need restocking`,
+        html,
+    });
+
+    for (const v of lowVariants as any[]) {
+        const isOut = Number(v.stock) <= 0;
+        const type  = isOut ? NOTIF_TYPES.OUT_OF_STOCK : NOTIF_TYPES.LOW_STOCK;
+        const title = isOut
+            ? `Out of stock: ${v.product?.name ?? 'Unknown'}`
+            : `Low stock: ${v.product?.name ?? 'Unknown'} (${v.stock} left)`;
+        await notifyStockAlertIfNew('stock.view', v.id, { type, title, data: { variant_id: v.id } }).catch(
+            (err: any) => logger.error('[low-stock] notify failed for variant %s: %s', v.id, err.message),
+        );
+    }
+
+    logger.info('[low-stock] Alert sent to %s for %d variant(s)', ownerEmail, lowVariants.length);
 }

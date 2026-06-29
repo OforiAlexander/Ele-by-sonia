@@ -9,7 +9,7 @@ export default class ProductOptionType extends BaseModel {
     name!: string;
     created_at!: string;
 
-    values?: unknown[];
+    values?: Array<{ id: string; option_type_id: string; value: string; created_at: string }>;
 
     static get relationMappings(): ReturnType<RelationMappingsThunk> {
         const ProductOptionValue = require('./ProductOptionValue').default;

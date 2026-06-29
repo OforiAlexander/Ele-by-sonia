@@ -5,7 +5,7 @@
  */
 import request from 'supertest';
 import { createApp } from '../server/createApp';
-import type { Setting } from '../client/common/types';
+import type { AppSetting as Setting } from '../client/common/types';
 import { settingSchema } from './schemas';
 import {
     createTestUser, cleanupUser, loginAgent,

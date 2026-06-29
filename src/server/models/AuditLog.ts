@@ -43,9 +43,15 @@ export default class AuditLog extends Model {
   static readonly STOCK_ADJUSTED = 'STOCK_ADJUSTED';
   static readonly LOW_STOCK_THRESHOLD_SET = 'LOW_STOCK_THRESHOLD_SET';
   static readonly PRICE_CHANGED = 'PRICE_CHANGED';
-  static readonly SALE_COMPLETED = 'SALE_COMPLETED';
-  static readonly SALE_VOIDED = 'SALE_VOIDED';
+  static readonly SALE_COMPLETED        = 'SALE_COMPLETED';
+  static readonly SALE_VOIDED           = 'SALE_VOIDED';
+  static readonly SALE_PAYMENT_CONFIRMED = 'SALE_PAYMENT_CONFIRMED';
   static readonly DISCOUNT_APPLIED = 'DISCOUNT_APPLIED';
+
+  // Categories
+  static readonly CATEGORY_CREATED = 'CATEGORY_CREATED';
+  static readonly CATEGORY_UPDATED = 'CATEGORY_UPDATED';
+  static readonly CATEGORY_DELETED = 'CATEGORY_DELETED';
 
   // Settings
   static readonly SETTING_UPDATED = 'SETTING_UPDATED';

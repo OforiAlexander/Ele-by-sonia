@@ -1008,6 +1008,323 @@ curl -s -X DELETE "http://localhost:8000/api/products/$PRODUCT_ID/images/0000000
 
 ---
 
+## Feature 13 — Stock management (UI: VariantsPage)
+
+> These endpoints back the Add Stock modal, Adjust Stock modal, threshold editor, and history drawer on VariantsPage.
+
+### 13.1 Add stock (positive units in)
+
+```bash
+VARIANT_ID="<uuid from GET /api/variants>"
+
+curl -s -X POST http://localhost:8000/api/stock/add \
+  -H "Content-Type: application/json" \
+  -b cookie.txt \
+  -d "{\"variant_id\":\"$VARIANT_ID\",\"quantity\":10,\"note\":\"Opening stock\"}" | jq
+# Expected: 201 { code: "STOCK_ADDED", data: { stock: 10, ... } }
+```
+
+**Missing quantity**
+```bash
+curl -s -X POST http://localhost:8000/api/stock/add \
+  -H "Content-Type: application/json" \
+  -b cookie.txt \
+  -d "{\"variant_id\":\"$VARIANT_ID\"}" | jq
+# Expected: 422
+```
+
+### 13.2 Adjust stock (signed delta, note required)
+
+```bash
+# Deduct 3 units (damaged goods)
+curl -s -X POST http://localhost:8000/api/stock/adjust \
+  -H "Content-Type: application/json" \
+  -b cookie.txt \
+  -d "{\"variant_id\":\"$VARIANT_ID\",\"quantity\":-3,\"note\":\"Damaged in storage\"}" | jq
+# Expected: 201 { code: "STOCK_ADJUSTED", data: { stock: 7, ... } }
+
+# Would make stock negative
+curl -s -X POST http://localhost:8000/api/stock/adjust \
+  -H "Content-Type: application/json" \
+  -b cookie.txt \
+  -d "{\"variant_id\":\"$VARIANT_ID\",\"quantity\":-999,\"note\":\"Too much\"}" | jq
+# Expected: 400 { code: "STOCK_INSUFFICIENT" }
+
+# Missing note
+curl -s -X POST http://localhost:8000/api/stock/adjust \
+  -H "Content-Type: application/json" \
+  -b cookie.txt \
+  -d "{\"variant_id\":\"$VARIANT_ID\",\"quantity\":-1}" | jq
+# Expected: 422
+```
+
+### 13.3 Set low-stock threshold
+
+```bash
+curl -s -X PATCH "http://localhost:8000/api/stock/threshold/$VARIANT_ID" \
+  -H "Content-Type: application/json" \
+  -b cookie.txt \
+  -d '{"low_stock_threshold":5}' | jq
+# Expected: 200 { code: "THRESHOLD_UPDATED", data: { low_stock_threshold: 5, ... } }
+
+# Threshold of 0 is valid (disables alert)
+curl -s -X PATCH "http://localhost:8000/api/stock/threshold/$VARIANT_ID" \
+  -H "Content-Type: application/json" \
+  -b cookie.txt \
+  -d '{"low_stock_threshold":0}' | jq
+# Expected: 200
+
+# Negative threshold rejected
+curl -s -X PATCH "http://localhost:8000/api/stock/threshold/$VARIANT_ID" \
+  -H "Content-Type: application/json" \
+  -b cookie.txt \
+  -d '{"low_stock_threshold":-1}' | jq
+# Expected: 422
+```
+
+### 13.4 Stock history
+
+```bash
+curl -s "http://localhost:8000/api/stock?variantId=$VARIANT_ID" \
+  -b cookie.txt | jq
+# Expected: 200 { data: [ { id, variant_id, quantity, note, created_at, createdByUser: { id, name } }, ... ] }
+# Ordered newest-first. createdByUser must NOT contain password_hash.
+```
+
+---
+
+## Categories
+
+Seed a login cookie first (see Auth section), then:
+
+```bash
+# List all categories
+curl -s http://localhost:8000/api/categories \
+  -b cookie.txt | jq
+# Expected: 200 { data: [ { id, name, created_at }, ... ] }
+
+# Create a category
+curl -s -X POST http://localhost:8000/api/categories \
+  -b cookie.txt \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Accessories"}' | jq
+# Expected: 201 { code: "CATEGORY_CREATED", data: { id, name, created_at } }
+# Error — duplicate name: 409 { code: "CONFLICT" }
+# Error — missing name: 422 { errors: [...] }
+
+# Update a category
+curl -s -X PUT "http://localhost:8000/api/categories/$CAT_ID" \
+  -b cookie.txt \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Bags"}' | jq
+# Expected: 200 { code: "CATEGORY_UPDATED", data: { id, name, created_at } }
+# Error — not found: 404 { code: "NOT_FOUND" }
+
+# Delete a category
+curl -s -X DELETE "http://localhost:8000/api/categories/$CAT_ID" \
+  -b cookie.txt | jq
+# Expected: 200 { code: "CATEGORY_DELETED", data: { id, name, created_at } }
+# Error — category in use by product: 409 { code: "IN_USE" }
+# Error — not found: 404 { code: "NOT_FOUND" }
+
+# DB — inspect categories
+psql $DATABASE_URL -c "SELECT id, name, created_at FROM categories ORDER BY name;"
+```
+
+---
+
+## Performance monitoring
+
+Every API response includes the server processing time as a header:
+
+```bash
+curl -si http://localhost:8000/api/products \
+  -b cookie.txt | grep -i x-response-time
+# Expected: X-Response-Time: 42ms
+```
+
+Slow requests (>1000ms) are logged to the server console as:
+```
+warn: [perf] SLOW GET /products — 1234ms (200)
+```
+
+In the browser DevTools console (development mode only), Axios logs every request:
+```
+[api] GET /products — 45ms total (server: 42ms)
+```
+
+---
+
+## POS — Sales (updated)
+
+Momo sales are now async. Cash sales complete immediately; Momo sales return `payment_status: "pending"` and resolve via Paystack webhook.
+
+```bash
+# Cash sale
+curl -s -X POST http://localhost:8000/api/sales \
+  -b cookie.txt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "payment_method": "cash",
+    "amount_tendered": 200,
+    "items": [{ "variant_id": "$VARIANT_ID", "quantity": 1 }]
+  }' | jq
+# Expected: 201 { code: "SALE_COMPLETED", data: { id, sale_number, payment_status: "paid", ... } }
+# Error — insufficient stock: 400 { code: "STOCK_INSUFFICIENT" }
+# Error — tendered < due: 400 { code: "AMOUNT_INSUFFICIENT" }
+
+# Momo sale (async — returns pending)
+curl -s -X POST http://localhost:8000/api/sales \
+  -b cookie.txt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "payment_method": "momo",
+    "customer_phone": "0241234567",
+    "momo_provider": "mtn",
+    "items": [{ "variant_id": "$VARIANT_ID", "quantity": 1 }]
+  }' | jq
+# Expected: 201 { code: "SALE_COMPLETED", data: { id, sale_number, payment_status: "pending", paystack_reference: "MOMT-..." } }
+# Customer receives a USSD prompt on their phone. Paystack webhook fires on approval/decline.
+
+# Poll sale status after Momo
+curl -s "http://localhost:8000/api/sales/$SALE_ID" \
+  -b cookie.txt | jq '.data.payment_status'
+# Expected: "paid" | "pending" | "failed"
+
+# Return items from a sale
+curl -s -X POST "http://localhost:8000/api/sales/$SALE_ID/return" \
+  -b cookie.txt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "items": [{ "sale_item_id": "$SALE_ITEM_ID", "quantity": 1 }],
+    "note": "Customer changed mind"
+  }' | jq
+# Expected: 201 { code: "SALE_RETURN_PROCESSED", data: { id, sale_id, items: [...], created_at } }
+# Error — quantity exceeds original: 400 { code: "RETURN_EXCEEDS_QUANTITY" }
+# Error — sale not paid: 400 { code: "NOT_PAID" }
+
+# DB — inspect returns
+# SELECT sr.*, sri.sale_item_id, sri.quantity
+# FROM sale_returns sr JOIN sale_return_items sri ON sri.return_id = sr.id
+# WHERE sr.sale_id = '$SALE_ID';
+```
+
+### Paystack webhook (Momo confirmation)
+
+Paystack calls `POST /webhooks/paystack` (note: NOT under /api). Requires valid `x-paystack-signature` header (HMAC-SHA512 of raw body with `PAYSTACK_SECRET_KEY`).
+
+```bash
+PAYLOAD='{"event":"charge.success","data":{"reference":"MOMT-..."}}'
+SIG=$(echo -n "$PAYLOAD" | openssl dgst -sha512 -hmac "$PAYSTACK_SECRET_KEY" | awk '{print $2}')
+curl -s -X POST http://localhost:8000/webhooks/paystack \
+  -H "Content-Type: application/json" \
+  -H "x-paystack-signature: $SIG" \
+  -d "$PAYLOAD"
+# Expected: 200
+```
+
+### Global discount rate
+
+Set in Settings (owner only). Applies automatically to every sale server-side.
+
+```bash
+curl -s -X PUT "http://localhost:8000/api/settings/SALES_GLOBAL_DISCOUNT_RATE" \
+  -b cookie.txt \
+  -H "Content-Type: application/json" \
+  -d '{"value":"10"}' | jq
+# Expected: 200 { code: "SETTINGS_UPDATED" }
+```
+
+### Price override (sales.override_price permission required)
+
+A cashier with `sales.override_price` can pass a `unit_price_override` per item. The original price is recorded in `sale_items.original_price` and the override in `sale_items.price_override` for audit purposes.
+
+```bash
+curl -s -X POST http://localhost:8000/api/sales \
+  -b cookie.txt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "payment_method": "cash",
+    "amount_tendered": 100,
+    "items": [{ "variant_id": "$VARIANT_ID", "quantity": 1, "unit_price_override": 80 }]
+  }' | jq
+# Expected: 201 with unit_price: 80 in sale_items
+# If user lacks permission: 403 { code: "FORBIDDEN" }
+```
+
+### Refund validity
+
+Returns are blocked if the sale is older than `REFUND_VALIDITY_DAYS` (default: 7 days).
+
+```bash
+# Attempt return on an old sale
+curl -s -X POST "http://localhost:8000/api/sales/$OLD_SALE_ID/return" \
+  -b cookie.txt \
+  -H "Content-Type: application/json" \
+  -d '{"items":[{"sale_item_id":"$SALE_ITEM_ID","quantity":1}]}' | jq
+# Expected: 400 { code: "RETURN_PERIOD_EXPIRED" }
+
+# Configure the validity window
+curl -s -X PUT "http://localhost:8000/api/settings/REFUND_VALIDITY_DAYS" \
+  -b cookie.txt -H "Content-Type: application/json" \
+  -d '{"value":"14"}' | jq
+```
+
+### Inventory levy (internal)
+
+When `INVENTORY_LEVY_ENABLED = true`, each sale records an internal levy in `sales.levy_amount`. This amount does not appear on receipts — it is a private tracking figure for the owner.
+
+```bash
+# Enable levy: GHS 1.00 flat per unit
+curl -s -X PUT "http://localhost:8000/api/settings/INVENTORY_LEVY_ENABLED" \
+  -b cookie.txt -H "Content-Type: application/json" \
+  -d '{"value":"true"}' | jq
+curl -s -X PUT "http://localhost:8000/api/settings/INVENTORY_LEVY_TYPE" \
+  -b cookie.txt -H "Content-Type: application/json" \
+  -d '{"value":"flat"}' | jq
+curl -s -X PUT "http://localhost:8000/api/settings/INVENTORY_LEVY_AMOUNT" \
+  -b cookie.txt -H "Content-Type: application/json" \
+  -d '{"value":"1"}' | jq
+# After a sale: check sales.levy_amount in the DB or sale response
+```
+
+### Momo pending timeout job
+
+Runs every 10 minutes. Finds `payment_status = 'pending'` sales older than `MOMO_PENDING_TIMEOUT_MINUTES` (default: 15), marks them `failed`, and restores stock.
+
+```bash
+# Configure timeout
+curl -s -X PUT "http://localhost:8000/api/settings/MOMO_PENDING_TIMEOUT_MINUTES" \
+  -b cookie.txt -H "Content-Type: application/json" \
+  -d '{"value":"20"}' | jq
+# DB check after timeout fires:
+# SELECT id, payment_status FROM sales WHERE payment_status = 'failed' ORDER BY created_at DESC LIMIT 5;
+```
+
+### Split tender (setting-gated)
+
+When `SPLIT_TENDER_ENABLED = true`, the POS will offer a cash + Momo split option. The `sale_payments` table stores each payment leg. UI to follow.
+
+```bash
+curl -s -X PUT "http://localhost:8000/api/settings/SPLIT_TENDER_ENABLED" \
+  -b cookie.txt -H "Content-Type: application/json" \
+  -d '{"value":"true"}' | jq
+```
+
+### EOD and weekly reconciliation emails
+
+Sent automatically — daily at 22:00 and weekly on Sunday at 22:00. Requires `OWNER_EMAIL` env var and `EOD_REPORT_ENABLED = true`.
+
+```bash
+# Enable / disable
+curl -s -X PUT "http://localhost:8000/api/settings/EOD_REPORT_ENABLED" \
+  -b cookie.txt -H "Content-Type: application/json" \
+  -d '{"value":"true"}' | jq
+# The email covers: cash sales, Momo sales, discounts, returns, voids, net cash, levy
+```
+
+---
+
 ## Automated test suite
 
 ```bash
@@ -1020,7 +1337,7 @@ yarn test:align
 
 Backend coverage: Auth — 26, Permissions — 5, Roles — 18, Staff — 26, Products — 22, Product Import — 8, Product Images — 11, Variants — 28, Stock — 34, Sales — 35, Reports — 36, Settings — 12. **301 total, all passing.**
 
-Alignment test coverage: Auth — 11, Products — 10, Variants — 10, Settings — 9, Sales — 14. **54 total, all passing.**
+Alignment test coverage: Auth — 11, Products — 10, Variants — 10, Settings — 9, Sales — 14, Categories — 9, Dashboard — (reports), Reports — (reports). **138 total, all passing.**
 
 ### Key alignment findings (documented by tests)
 
@@ -1029,3 +1346,135 @@ Alignment test coverage: Auth — 11, Products — 10, Variants — 10, Settings
 - `role_id` and `sku` are absent (not `null`) in JSON when the model field is null — Objection.js optional field pattern
 - Variants route is `POST /api/variants` with `{product_id, optionValueIds: [], ...}` — not `/api/products/:id/variants`
 - Sale total is `amount_due` — not `total_amount`
+
+---
+
+## POS UI (Point of Sale)
+
+The POS UI lives at `/pos` in the inventory portal. It is a two-column layout: left panel for product search, right panel for the active cart.
+
+### Flow to test
+
+1. Log in as a user with `sales.create` permission (or owner).
+2. Navigate to `/pos`.
+3. Type at least 2 characters in the search box — results appear in a dropdown with stock levels and prices.
+4. Click a result to add it to the cart. Clicking the same variant again increments quantity.
+5. Use the `−`/`+` steppers in the cart to adjust quantity. Remove an item with the `Remove` link.
+6. If the user has `sales.override_price`, a clickable "Override price" link appears under each cart item — click it to enter a custom price (shown in orange with the original struck through).
+7. If the user has `sales.discount_sales`, a discount input is shown in the cart footer.
+8. Click **Charge** to open the payment modal.
+
+### Cash payment test
+
+```bash
+# Confirm a cash sale via the UI:
+# 1. Add items → Charge → Cash tab → enter amount_tendered ≥ total → Confirm
+# 2. Modal shows success with change amount → close → receipt modal opens
+# 3. Print button triggers the browser print dialog (thermal receipt layout)
+
+# Equivalent curl:
+curl -s -X POST "http://localhost:8000/api/sales" \
+  -b cookie.txt -H "Content-Type: application/json" \
+  -d '{
+    "payment_method": "cash",
+    "amount_tendered": 50,
+    "discount": 0,
+    "items": [{"variant_id": "<UUID>", "quantity": 1}]
+  }' | jq '.data | {id, sale_number, amount_due, change_given, payment_status}'
+```
+
+### Momo payment test
+
+```bash
+# In the UI: payment modal → Mobile Money tab → enter phone → Confirm
+# The modal shows a yellow spinner ("Awaiting payment...") while polling GET /api/sales/:id every 3 seconds.
+# When payment_status becomes 'paid', success screen appears.
+
+# Equivalent curl:
+curl -s -X POST "http://localhost:8000/api/sales" \
+  -b cookie.txt -H "Content-Type: application/json" \
+  -d '{
+    "payment_method": "momo",
+    "customer_phone": "0241234567",
+    "momo_provider": "mtn",
+    "discount": 0,
+    "items": [{"variant_id": "<UUID>", "quantity": 1}]
+  }' | jq '.data | {id, sale_number, amount_due, payment_status}'
+
+# Simulate paid (Paystack webhook):
+curl -s -X POST "http://localhost:8000/api/sales/webhook/paystack" \
+  -H "x-paystack-signature: <sig>" \
+  -H "Content-Type: application/json" \
+  -d '{"event":"charge.success","data":{"reference":"<paystack_reference>","amount":<amount_in_pesewas>}}'
+```
+
+### Price override test
+
+```bash
+# Requires sales.override_price permission or is_owner = true
+curl -s -X POST "http://localhost:8000/api/sales" \
+  -b cookie.txt -H "Content-Type: application/json" \
+  -d '{
+    "payment_method": "cash",
+    "amount_tendered": 30,
+    "discount": 0,
+    "items": [{"variant_id": "<UUID>", "quantity": 1, "unit_price_override": 30.00}]
+  }' | jq '.data | {id, amount_due}'
+# Check sale_items.original_price vs sale_items.price in the DB
+```
+
+### Hold cart test
+
+```bash
+# UI only — no API endpoint:
+# 1. Add items to cart → click "Hold" → cart is cleared, stored in localStorage (key: pos_held_carts, max 3)
+# 2. Click the "Held (N)" button → Hold drawer opens
+# 3. Click Recall to restore a held cart (warns if current cart is non-empty)
+# 4. Click Discard to delete a held cart
+```
+
+### Levy on sale
+
+```bash
+# With INVENTORY_LEVY_ENABLED=true, levy_amount is computed server-side and stored on the sale.
+# Verify: after a sale, check the DB:
+# SELECT id, amount_due, levy_amount FROM sales ORDER BY created_at DESC LIMIT 1;
+```
+
+---
+
+## Sales History page (`/inventory/sales`)
+
+Accessible via "Sales History" in the sidebar. Shows a paginated table of all sales including voided ones.
+
+### List sales (with filters)
+
+```bash
+# All sales (including voided)
+curl -s "http://localhost:8000/api/sales?include_voided=true&page=1&limit=20" \
+  -b cookie.txt | jq '.data | {total, page, count: (.sales | length)}'
+
+# Filter by date range
+curl -s "http://localhost:8000/api/sales?include_voided=true&from=2026-06-01&to=2026-06-30" \
+  -b cookie.txt | jq '.data.total'
+
+# Filter by payment method
+curl -s "http://localhost:8000/api/sales?payment_method=cash" \
+  -b cookie.txt | jq '.data.total'
+```
+
+### View sale detail (with product names on items)
+
+```bash
+curl -s "http://localhost:8000/api/sales/<SALE_UUID>" \
+  -b cookie.txt | jq '.data | {sale_number, amount_due, items: [.items[] | {product_name: .variant.product_name, sku: .variant.sku, quantity, unit_price, line_total}]}'
+```
+
+### Void a sale (from the detail drawer, requires can_void_sales)
+
+```bash
+curl -s -X POST "http://localhost:8000/api/sales/<SALE_UUID>/void" \
+  -b cookie.txt | jq '.data | {sale_number, voided_at}'
+# Verify stock was restored:
+# SELECT id, stock FROM product_variants WHERE id = '<VARIANT_UUID>';
+```

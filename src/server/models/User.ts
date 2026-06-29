@@ -19,6 +19,9 @@ export default class User extends BaseModel {
   reset_token?: string;
   reset_token_expires_at?: string;
   sessions_invalidated_at?: string;
+  failed_login_attempts!: number;
+  locked_until?: string | null;
+  last_password_change_at?: string | null;
   created_at!: string;
   updated_at?: string;
 
@@ -43,6 +46,8 @@ export default class User extends BaseModel {
   can_discount_sales?: boolean;
   can_void_sales?: boolean;
   can_return_sales?: boolean;
+  can_override_price?: boolean;
+  can_verify_payment?: boolean;
   can_view_staff?: boolean;
   can_create_staff?: boolean;
   can_update_staff?: boolean;
@@ -55,6 +60,8 @@ export default class User extends BaseModel {
   can_export_reports?: boolean;
   can_view_settings?: boolean;
   can_update_settings?: boolean;
+  can_view_categories?: boolean;
+  can_manage_categories?: boolean;
 
   public applyPermissionFlags(permNames: string[]): void {
     const has = (name: string) => this.is_owner || permNames.includes(name);
@@ -76,6 +83,8 @@ export default class User extends BaseModel {
     this.can_discount_sales   = has('sales.discount');
     this.can_void_sales       = has('sales.void');
     this.can_return_sales     = has('sales.return');
+    this.can_override_price   = has('sales.override_price');
+    this.can_verify_payment   = has('sales.verify_payment');
     this.can_view_staff       = has('staff.view');
     this.can_create_staff     = has('staff.create');
     this.can_update_staff     = has('staff.update');
@@ -86,8 +95,10 @@ export default class User extends BaseModel {
     this.can_delete_roles     = has('roles.delete');
     this.can_view_reports     = has('reports.view');
     this.can_export_reports   = has('reports.export');
-    this.can_view_settings    = has('settings.view');
-    this.can_update_settings  = has('settings.update');
+    this.can_view_settings     = has('settings.view');
+    this.can_update_settings   = has('settings.update');
+    this.can_view_categories   = has('categories.view');
+    this.can_manage_categories = has('categories.manage');
   }
 
   $afterFind(queryContext: QueryContext): void {

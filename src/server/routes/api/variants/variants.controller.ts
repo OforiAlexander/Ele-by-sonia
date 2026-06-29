@@ -14,7 +14,7 @@ export async function createOptionTypeController(req: Request, res: Response, ne
     try {
         const { product_id, name } = req.body;
         const type = await VariantsService.createOptionType(product_id, name);
-        await writeAuditLog(req.user!.id, AuditLog.OPTION_TYPE_CREATED, 'option_type', (type as any).id,
+        await writeAuditLog(req.user!.id, AuditLog.OPTION_TYPE_CREATED, 'option_type', type.id,
             undefined, { product_id, name });
         res.status(201).json({ code: CODES.OPTION_TYPE_CREATED, data: type });
     } catch (err) { next(err); }
@@ -31,7 +31,7 @@ export async function deleteOptionTypeController(req: Request, res: Response, ne
 export async function addOptionValueController(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
         const value = await VariantsService.addOptionValue(req.params.id, req.body.value);
-        await writeAuditLog(req.user!.id, AuditLog.OPTION_VALUE_ADDED, 'option_value', (value as any).id,
+        await writeAuditLog(req.user!.id, AuditLog.OPTION_VALUE_ADDED, 'option_value', value.id,
             undefined, { option_type_id: req.params.id, value: req.body.value });
         res.status(201).json({ code: CODES.OPTION_VALUE_ADDED, data: value });
     } catch (err) { next(err); }
@@ -57,6 +57,17 @@ export async function getVariantController(req: Request, res: Response, next: Ne
     } catch (err) { next(err); }
 }
 
+export async function searchVariantsController(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+        const q = req.query.q as string | undefined;
+        const inStock = req.query.inStock === 'true';
+        const activeOnly = req.query.isActive !== 'false';
+        const limit = Math.min(Number(req.query.limit) || 20, 50);
+        const results = await VariantsService.searchVariants(q, inStock, activeOnly, limit);
+        res.json({ data: results });
+    } catch (err) { next(err); }
+}
+
 export async function createVariantController(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
         const { product_id, cost_price, selling_price, optionValueIds, low_stock_threshold, sku } = req.body;
@@ -75,6 +86,16 @@ export async function updateVariantController(req: Request, res: Response, next:
             before,
             { cost_price, selling_price, sku, is_active });
         res.json({ code: CODES.VARIANT_UPDATED, data: variant });
+    } catch (err) { next(err); }
+}
+
+export async function setVariantStatusController(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+        const { is_active } = req.body;
+        const { variant, before } = await VariantsService.setVariantStatus(req.params.id, is_active);
+        await writeAuditLog(req.user!.id, AuditLog.VARIANT_UPDATED, 'variant', variant.id,
+            { is_active: before }, { is_active: variant.is_active });
+        res.json({ code: CODES.VARIANT_STATUS_UPDATED, data: variant });
     } catch (err) { next(err); }
 }
 

@@ -45,6 +45,16 @@ export async function isLoggedIn(req: Request, res: Response, next: NextFunction
         return;
     }
 
+    // Paths accessible while must_change_password is true (session exists but app is locked)
+    const ALLOWED_WHILE_LOCKED = ['/api/auth/me', '/api/auth/change-password', '/api/auth/logout'];
+    if (user.must_change_password) {
+        const allowed = ALLOWED_WHILE_LOCKED.some((p) => req.originalUrl === p || req.originalUrl.startsWith(p + '?'));
+        if (!allowed) {
+            res.status(403).json({ code: CODES.MUST_CHANGE_PASSWORD, message: 'You must change your password before continuing.' });
+            return;
+        }
+    }
+
     user.applyPermissionFlags(getPermissionNames(user.role_id));
     req.user = user;
     next();

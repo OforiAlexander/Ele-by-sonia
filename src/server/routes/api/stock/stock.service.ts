@@ -1,6 +1,8 @@
 import knex from '../../../models/_config';
 import ProductVariant from '../../../models/ProductVariant';
 import StockEntry from '../../../models/StockEntry';
+import { notifyOwner, notifyStockAlertIfNew, NOTIF_TYPES } from '../../../services/notifications/notify';
+import logger from '../../../services/logger';
 
 function notFound() {
     return Object.assign(new Error('Variant not found.'), { status: 404, code: 'NOT_FOUND' });
@@ -31,12 +33,13 @@ export async function addStock(
     note: string | undefined,
     userId: string,
 ): Promise<{ variant: ProductVariant; stockBefore: number }> {
-    const variant = await getVariant(variantId);
-    if (!variant.is_active) throw inactiveVariant();
-
-    const stockBefore = variant.stock;
+    let stockBefore!: number;
 
     await knex.transaction(async (trx) => {
+        const row = await trx('product_variants').where({ id: variantId }).forUpdate().first();
+        if (!row) throw notFound();
+        if (!row.is_active) throw inactiveVariant();
+        stockBefore = Number(row.stock);
         await trx('stock_entries').insert({ variant_id: variantId, quantity, note, created_by: userId });
         await trx('product_variants').where({ id: variantId }).increment('stock', quantity);
     });
@@ -51,19 +54,19 @@ export async function adjustStock(
     note: string,
     userId: string,
 ): Promise<{ variant: ProductVariant; stockBefore: number }> {
-    const variant = await getVariant(variantId);
-    if (!variant.is_active) throw inactiveVariant();
-
-    if (variant.stock + quantity < 0) {
-        throw Object.assign(
-            new Error(`Stock cannot go below zero. Current stock: ${variant.stock}.`),
-            { status: 400, code: 'STOCK_INSUFFICIENT' },
-        );
-    }
-
-    const stockBefore = variant.stock;
+    let stockBefore!: number;
 
     await knex.transaction(async (trx) => {
+        const row = await trx('product_variants').where({ id: variantId }).forUpdate().first();
+        if (!row) throw notFound();
+        if (!row.is_active) throw inactiveVariant();
+        stockBefore = Number(row.stock);
+        if (stockBefore + quantity < 0) {
+            throw Object.assign(
+                new Error(`Stock cannot go below zero. Current stock: ${stockBefore}.`),
+                { status: 400, code: 'STOCK_INSUFFICIENT' },
+            );
+        }
         await trx('stock_entries').insert({ variant_id: variantId, quantity, note, created_by: userId });
         const rows = await trx('product_variants')
             .where({ id: variantId })
@@ -78,6 +81,32 @@ export async function adjustStock(
     });
 
     const updated = (await ProductVariant.query().findById(variantId))!;
+
+    if (quantity < 0) {
+        const newStock = Number(updated.stock);
+        if (newStock <= 0) {
+            notifyStockAlertIfNew('stock.view', variantId, {
+                type:  NOTIF_TYPES.OUT_OF_STOCK,
+                title: `Out of stock after adjustment`,
+                body:  `Stock for variant ${variantId} reached zero during a manual adjustment.`,
+                data:  { variant_id: variantId },
+            }).catch((err: any) => logger.error('[notify] stock-adjust out-of-stock: %s', err.message));
+        } else if (newStock <= Number(updated.low_stock_threshold)) {
+            notifyStockAlertIfNew('stock.view', variantId, {
+                type:  NOTIF_TYPES.LOW_STOCK,
+                title: `Low stock after adjustment (${newStock} left)`,
+                data:  { variant_id: variantId },
+            }).catch((err: any) => logger.error('[notify] stock-adjust low-stock: %s', err.message));
+        }
+
+        notifyOwner({
+            type:  NOTIF_TYPES.STOCK_ADJUSTED,
+            title: 'Stock adjusted (negative)',
+            body:  `Stock was reduced by ${Math.abs(quantity)} unit(s) for variant ${variantId}. Note: ${note}`,
+            data:  { variant_id: variantId, quantity, note },
+        }).catch((err: any) => logger.error('[notify] stock-adjusted: %s', err.message));
+    }
+
     return { variant: updated, stockBefore };
 }
 

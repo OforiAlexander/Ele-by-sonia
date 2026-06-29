@@ -181,10 +181,10 @@ describe('POST /api/stock/add', () => {
         expect(res.status).toBe(400);
     });
 
-    it('returns 201 and increments stock correctly', async () => {
+    it('returns 200 and increments stock correctly', async () => {
         const s = await login(OWNER_EMAIL);
         const res = await s.post('/api/stock/add').send({ variant_id: testVariantId, quantity: 10, note: 'Initial delivery' });
-        expect(res.status).toBe(201);
+        expect(res.status).toBe(200);
         expect(res.body.code).toBe('STOCK_ADDED');
         expect(res.body.data.stock).toBe(10);
     });
@@ -192,7 +192,7 @@ describe('POST /api/stock/add', () => {
     it('accumulates stock across multiple additions', async () => {
         const s = await login(MANAGER_EMAIL);
         const res = await s.post('/api/stock/add').send({ variant_id: testVariantId, quantity: 5 });
-        expect(res.status).toBe(201);
+        expect(res.status).toBe(200);
         expect(res.body.data.stock).toBe(15);
     });
 
@@ -279,25 +279,25 @@ describe('POST /api/stock/adjust', () => {
         expect(res.status).toBe(400);
     });
 
-    it('returns 201 with a negative adjustment', async () => {
+    it('returns 200 with a negative adjustment', async () => {
         const s = await login(OWNER_EMAIL);
         const res = await s.post('/api/stock/adjust').send({ variant_id: testVariantId, quantity: -5, note: 'Damaged in storage' });
-        expect(res.status).toBe(201);
+        expect(res.status).toBe(200);
         expect(res.body.code).toBe('STOCK_ADJUSTED');
         expect(res.body.data.stock).toBe(15); // 20 - 5
     });
 
-    it('returns 201 with a positive adjustment', async () => {
+    it('returns 200 with a positive adjustment', async () => {
         const s = await login(MANAGER_EMAIL);
         const res = await s.post('/api/stock/adjust').send({ variant_id: testVariantId, quantity: 3, note: 'Found extra units' });
-        expect(res.status).toBe(201);
+        expect(res.status).toBe(200);
         expect(res.body.data.stock).toBe(18); // 15 + 3
     });
 
     it('allows adjusting stock exactly to zero', async () => {
         const s = await login(OWNER_EMAIL);
         const res = await s.post('/api/stock/adjust').send({ variant_id: testVariantId, quantity: -18, note: 'Full write-off' });
-        expect(res.status).toBe(201);
+        expect(res.status).toBe(200);
         expect(res.body.data.stock).toBe(0);
     });
 

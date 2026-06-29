@@ -17,6 +17,11 @@ import {
     connectDb, disconnectDb, TEST_PASS,
 } from './align-helpers';
 
+const FAKE_PNG = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    'base64',
+);
+
 jest.mock('../server/services/recaptcha', () => ({
     verifyRecaptcha: jest.fn().mockResolvedValue(true),
 }));
@@ -145,12 +150,13 @@ describe('POST /api/products — accepts the frontend Formik payload', () => {
         }
     });
 
-    it('accepts {name, category} minimum payload', async () => {
+    it('accepts {name, category} minimum payload with image', async () => {
         const { agent } = await loginAgent(app, EMAIL);
-        const res = await agent.post('/api/products').send({
-            name: 'Align Form Product',
-            category: 'Clothing',
-        });
+        const res = await agent
+            .post('/api/products')
+            .field('name', 'Align Form Product')
+            .field('category', 'Ladies Clothing')
+            .attach('images', FAKE_PNG, { filename: 'test.png', contentType: 'image/png' });
 
         expect(res.status).toBe(201);
         await expect(
@@ -161,12 +167,13 @@ describe('POST /api/products — accepts the frontend Formik payload', () => {
 
     it('accepts optional brand and description fields', async () => {
         const { agent } = await loginAgent(app, EMAIL);
-        const res = await agent.post('/api/products').send({
-            name: 'Align Full Product',
-            category: 'Shoes',
-            brand: 'Elegance',
-            description: 'A test product',
-        });
+        const res = await agent
+            .post('/api/products')
+            .field('name', 'Align Full Product')
+            .field('category', 'Shoes')
+            .field('brand', 'Elegance')
+            .field('description', 'A test product')
+            .attach('images', FAKE_PNG, { filename: 'test.png', contentType: 'image/png' });
 
         expect(res.status).toBe(201);
         const product: Product = res.body.data as Product;
@@ -177,13 +184,22 @@ describe('POST /api/products — accepts the frontend Formik payload', () => {
 
     it('returns 422 when name is missing', async () => {
         const { agent } = await loginAgent(app, EMAIL);
-        const res = await agent.post('/api/products').send({ category: 'Clothing' });
+        const res = await agent.post('/api/products').send({ category: 'Ladies Clothing' });
         expect(res.status).toBe(422);
     });
 
     it('returns 422 when category is missing', async () => {
         const { agent } = await loginAgent(app, EMAIL);
         const res = await agent.post('/api/products').send({ name: 'No Category' });
+        expect(res.status).toBe(422);
+    });
+
+    it('returns 422 when images are missing', async () => {
+        const { agent } = await loginAgent(app, EMAIL);
+        const res = await agent
+            .post('/api/products')
+            .field('name', 'No Image Product')
+            .field('category', 'Shoes');
         expect(res.status).toBe(422);
     });
 });
@@ -195,12 +211,63 @@ describe('PUT /api/products/:id — accepts the frontend update payload', () => 
         const { agent } = await loginAgent(app, EMAIL);
         const res = await agent.put(`/api/products/${productId}`).send({
             name: 'Updated Align Product',
-            category: 'Test Category',
+            category: 'Shoes',
         });
 
         expect(res.status).toBe(200);
         await expect(
             productSchema.validate(res.body.data, { abortEarly: false }),
         ).resolves.toBeDefined();
+    });
+});
+
+// ─── DELETE /api/products/:id — deactivates (not a hard delete) ──────────────
+// IMPORTANT: DELETE does NOT destroy the row. It calls deactivateProduct()
+// which sets is_active = false. The product remains queryable.
+// The UI should display this as "Deactivate" not "Delete".
+
+describe('DELETE /api/products/:id — deactivates product, keeps row', () => {
+    let deactivateTargetId = '';
+
+    beforeAll(async () => {
+        const { user } = await createTestUser({ email: 'deactivate-align@example.com', password: TEST_PASS, is_owner: true });
+        const product = await createTestProduct({ name: 'Deactivate Target' }, user.id);
+        deactivateTargetId = product.id;
+    });
+
+    afterAll(async () => {
+        await cleanupTestProduct(deactivateTargetId).catch(() => undefined);
+        await cleanupUserCascade('deactivate-align@example.com');
+    });
+
+    it('returns 200 and sets is_active to false — product is not deleted', async () => {
+        const { agent } = await loginAgent(app, EMAIL);
+        const res = await agent.delete(`/api/products/${deactivateTargetId}`);
+
+        expect(res.status).toBe(200);
+        // Compile-time: response data must be assignable to Product
+        const product: Product = res.body.data as Product;
+        expect(product.is_active).toBe(false);
+        expect(product.id).toBe(deactivateTargetId);
+    });
+
+    it('deactivated product still appears in GET /api/products list', async () => {
+        const { agent } = await loginAgent(app, EMAIL);
+        const res = await agent.get('/api/products');
+
+        const found = res.body.data.products.find((p: Product) => p.id === deactivateTargetId);
+        expect(found).toBeDefined();
+        expect(found.is_active).toBe(false);
+    });
+
+    it('returns 404 for unknown id', async () => {
+        const { agent } = await loginAgent(app, EMAIL);
+        const res = await agent.delete('/api/products/00000000-0000-0000-0000-000000000000');
+        expect(res.status).toBe(404);
+    });
+
+    it('requires authentication', async () => {
+        const res = await request(app).delete(`/api/products/${deactivateTargetId}`);
+        expect(res.status).toBe(401);
     });
 });

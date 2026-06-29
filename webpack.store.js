@@ -16,7 +16,8 @@ module.exports = merge(common, {
     new HtmlWebpackPlugin({
       template: './src/client/portals/store/index.html',
       filename: 'index.html',
-      title: 'Elegance by Sconia',
+      title: 'Elegance by Sconia — Fashion Boutique | Accra, Ghana',
+      favicon: './src/client/common/assets/EBS_bold-01.png',
     }),
     new MiniCssExtractPlugin({ filename: 'store.css' }),
   ],

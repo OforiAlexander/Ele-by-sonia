@@ -29,9 +29,9 @@ export const productSchema = Yup.object({
   id: Yup.string().uuid().required(),
   name: Yup.string().required(),
   category: Yup.string().required(),
-  // brand/description declared as optional on Product model; absent in JSON when null
   brand: Yup.string().nullable().optional(),
   description: Yup.string().nullable().optional(),
+  is_active: Yup.boolean().required(),
   created_at: Yup.string().required(),
 }).required();
 
@@ -61,14 +61,21 @@ export const productVariantSchema = Yup.object({
 }).required();
 
 // ─── Setting ─────────────────────────────────────────────────────────────────
-// Mirrors: src/client/common/types/index.ts → Setting
+// Mirrors: src/client/common/types/index.ts → AppSetting
 export const settingSchema = Yup.object({
-  id: Yup.string().uuid().required(),
-  name: Yup.string().required(),
-  label: Yup.string().required(),
-  value: Yup.string().required(),
-  group: Yup.string().required(),
-  editable: Yup.boolean().required(),
+  id:               Yup.string().uuid().required(),
+  name:             Yup.string().required(),
+  label:            Yup.string().required(),
+  value:            Yup.string().defined(),
+  group:            Yup.string().required(),
+  editable:         Yup.boolean().required(),
+  type:             Yup.string().oneOf(['string', 'textarea', 'boolean', 'number', 'time', 'enum']).required(),
+  unit:             Yup.string().nullable().defined(),
+  hint:             Yup.string().nullable().defined(),
+  options:          Yup.array().of(Yup.string().required()).nullable().defined(),
+  min:              Yup.number().nullable().defined(),
+  max:              Yup.number().nullable().defined(),
+  restart_required: Yup.boolean().required(),
 }).required();
 
 // ─── Sale ────────────────────────────────────────────────────────────────────
@@ -77,12 +84,16 @@ export const settingSchema = Yup.object({
 export const saleSchema = Yup.object({
   id: Yup.string().uuid().required(),
   sale_number: Yup.string().required(),
-  payment_method: Yup.string().oneOf(['cash', 'momo']).required(),
+  payment_method: Yup.string().oneOf(['cash', 'momo', 'split']).required(),
   payment_status: Yup.string().required(),
   amount_due: Yup.string().required(),
   amount_tendered: Yup.string().nullable().defined(),
   change_given: Yup.string().nullable().defined(),
   discount: Yup.string().required(),
+  vat_amount: Yup.string().required(),
+  nhil_amount: Yup.string().required(),
+  getfund_amount: Yup.string().required(),
+  covid_levy_amount: Yup.string().required(),
   created_at: Yup.string().required(),
 }).required();
 
@@ -93,6 +104,14 @@ export const paginatedSalesSchema = Yup.object({
   total: Yup.number().required(),
   page: Yup.number().required(),
   limit: Yup.number().required(),
+}).required();
+
+// ─── Category ────────────────────────────────────────────────────────────────
+// Mirrors: src/client/common/types/index.ts → Category
+export const categorySchema = Yup.object({
+  id:         Yup.string().uuid().required(),
+  name:       Yup.string().required(),
+  created_at: Yup.string().required(),
 }).required();
 
 // ─── Role ─────────────────────────────────────────────────────────────────────
@@ -139,8 +158,8 @@ export const chartSchema = Yup.object({
 // ─── Top product item ─────────────────────────────────────────────────────────
 // One element from GET /api/reports/top-products?period=*
 // Hook extracts: item.productName, item.revenue → DashSummary.topItems
+// NOTE: backend returns variantId, NOT productId — no productId field in response
 export const topProductSchema = Yup.object({
-  productId:   Yup.string().uuid().required(),
   variantId:   Yup.string().uuid().required(),
   productName: Yup.string().required(),
   sku:         Yup.string().nullable().optional(),
@@ -158,6 +177,38 @@ export const profitBreakdownItemSchema = Yup.object({
   cost:    Yup.number().required(),
   profit:  Yup.number().required(),
   margin:  Yup.number().required(),
+}).required();
+
+// ─── SearchVariantResult ─────────────────────────────────────────────────────
+// Mirrors: src/client/common/types/index.ts → SearchVariantResult
+// Returned by GET /api/variants/search — used by POS to look up variants
+export const searchVariantSchema = Yup.object({
+  id:                 Yup.string().uuid().required(),
+  product_id:         Yup.string().uuid().required(),
+  product_name:       Yup.string().required(),
+  sku:                Yup.string().nullable().optional(),
+  cost_price:         Yup.string().required(),
+  selling_price:      Yup.string().required(),
+  stock:              Yup.number().required(),
+  low_stock_threshold: Yup.number().required(),
+  is_active:          Yup.boolean().required(),
+  created_at:         Yup.string().required(),
+  optionValues:       Yup.array().required(),
+}).required();
+
+// ─── StockEntry ───────────────────────────────────────────────────────────────
+// One element from GET /api/stock?variantId=*
+// UI reads: quantity, note, createdByUser.name for the stock history list
+export const stockEntrySchema = Yup.object({
+  id:         Yup.string().uuid().required(),
+  variant_id: Yup.string().uuid().required(),
+  quantity:   Yup.number().integer().required(),
+  note:       Yup.string().nullable().optional(),
+  created_at: Yup.string().required(),
+  createdByUser: Yup.object({
+    id:   Yup.string().uuid().required(),
+    name: Yup.string().required(),
+  }).required(),
 }).required();
 
 // ─── StaffMember ─────────────────────────────────────────────────────────────
