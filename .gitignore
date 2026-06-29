@@ -1,6 +1,7 @@
 node_modules/
 dist/
 nodemon.json
+render.env
 uploads/
 *.log
 .DS_Store
