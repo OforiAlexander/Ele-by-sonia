@@ -100,7 +100,7 @@ export async function createStaff(
             logoUrl: getLogoUrl(),
             isResend: false,
         }),
-    }).catch((err) => logger.error('Welcome email failed for %s: %o', user.email, err));
+    }).catch((err) => logger.error('Welcome email failed', { email: user.email, error: err?.message ?? String(err) }));
 
     notifyOwner({
         type:  NOTIF_TYPES.STAFF_INVITED,
