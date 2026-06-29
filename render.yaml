@@ -42,13 +42,7 @@ services:
         sync: false
       - key: OWNER_TEMP_PASSWORD
         sync: false
-      - key: MAIL_HOST
-        value: smtp.gmail.com
-      - key: MAIL_PORT
-        value: "587"
-      - key: MAIL_USER
-        sync: false
-      - key: MAIL_PASSWORD
+      - key: RESEND_API_KEY
         sync: false
       - key: MAIL_FROM
         sync: false

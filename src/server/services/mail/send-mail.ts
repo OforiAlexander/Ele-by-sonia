@@ -1,18 +1,10 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import Message from '../../models/Message';
 import logger from '../logger';
 
-const mailPort = Number(process.env.MAIL_PORT ?? 587);
+if (!process.env.RESEND_API_KEY) throw new Error('RESEND_API_KEY is not set');
 
-const transporter = nodemailer.createTransport({
-  host: process.env.MAIL_HOST,
-  port: mailPort,
-  secure: mailPort === 465,
-  auth: {
-    user: process.env.MAIL_USER,
-    pass: process.env.MAIL_PASSWORD,
-  },
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export interface MailAttachment {
   filename: string;
@@ -32,27 +24,28 @@ export interface SendMailOptions {
 export async function sendMail(options: SendMailOptions): Promise<void> {
   const { to, subject, html, text, cc, attachments } = options;
 
-  await transporter.sendMail({
-    from: process.env.MAIL_FROM,
+  const { error } = await resend.emails.send({
+    from: process.env.MAIL_FROM!,
     to,
-    cc,
+    ...(cc ? { cc } : {}),
     subject,
     html,
     text: text ?? html.replace(/<[^>]+>/g, ''),
     attachments: attachments?.map((a) => ({
       filename:    a.filename,
-      content:     a.content,
+      content:     a.content.toString('base64'),
       contentType: a.contentType,
     })),
   });
 
+  if (error) throw new Error(error.message);
+
   logger.info(`Email sent to ${to}: ${subject}`);
 
-  // Log to DB after the send succeeds — a DB failure must not fail the send
   Message.query().insert({
-    type: 'email',
+    type:        'email',
     destination: to,
     subject,
-    content: text ?? html.replace(/<[^>]+>/g, ''),
-  }).catch((err) => logger.error('Failed to log sent email to messages table: %o', err));
+    content:     text ?? html.replace(/<[^>]+>/g, ''),
+  }).catch((err) => logger.error('Failed to log sent email to messages table', { error: err?.message }));
 }
