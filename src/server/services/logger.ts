@@ -16,7 +16,9 @@ const devFormat = combine(
 
 const logger = winston.createLogger({
     level: process.env.NODE_ENV === 'production' ? 'info' : 'http',
-    format: process.env.NODE_ENV === 'production' ? json() : devFormat,
+    format: process.env.NODE_ENV === 'production'
+        ? combine(splat(), json())
+        : devFormat,
     transports: [new winston.transports.Console()],
 });
 
