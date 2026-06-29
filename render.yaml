@@ -3,9 +3,10 @@ services:
     name: elegance-redis
     plan: free
     maxmemoryPolicy: noeviction
+    ipAllowList: []
 
   - type: web
-    name: elegance-sconia
+    name: elegance-by-sconia
     runtime: node
     plan: starter
     buildCommand: yarn install && yarn build
