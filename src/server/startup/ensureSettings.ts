@@ -11,15 +11,25 @@ export async function ensureSettings(): Promise<void> {
 
     if (!existing) {
       await Setting.query().insert({
-        name: def.name,
-        label: def.label,
-        value: def.value,
-        group: def.group,
+        name:     def.name,
+        label:    def.label,
+        value:    def.value,
+        group:    def.group,
         editable: def.editable,
       });
       logger.info(`  + Setting created: ${def.name} = ${def.value}`);
+    } else {
+      const patch: Record<string, unknown> = {
+        label:    def.label,
+        group:    def.group,
+        editable: def.editable,
+      };
+      // Non-editable settings are code-owned; enforce the code-defined value on every startup
+      if (!def.editable) {
+        patch.value = def.value;
+      }
+      await Setting.query().where({ name: def.name }).patch(patch);
     }
-    // Existing settings are never overwritten — the owner's edits are preserved
   }
 
   logger.info('Settings synced.');

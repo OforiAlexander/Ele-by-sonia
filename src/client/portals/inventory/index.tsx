@@ -18,7 +18,8 @@ const DashboardPage     = React.lazy(() => import(/* webpackPrefetch: true */ '.
 const ProductsPage      = React.lazy(() => import(/* webpackPrefetch: true */ './pages/ProductsPage'));
 const CategoriesPage    = React.lazy(() => import(/* webpackPrefetch: true */ './pages/CategoriesPage'));
 const PosPage           = React.lazy(() => import(/* webpackPrefetch: true */ './pages/PosPage'));
-const SalesHistoryPage  = React.lazy(() => import(/* webpackPrefetch: true */ './pages/SalesHistoryPage'));
+const SalesHistoryPage   = React.lazy(() => import(/* webpackPrefetch: true */ './pages/SalesHistoryPage'));
+const TransactionsPage   = React.lazy(() => import(/* webpackPrefetch: true */ './pages/TransactionsPage'));
 const OrdersPage        = React.lazy(() => import(/* webpackPrefetch: true */ './pages/OrdersPage'));
 const ReportsPage       = React.lazy(() => import(/* webpackPrefetch: true */ './pages/ReportsPage'));
 const StaffPage         = React.lazy(() => import(/* webpackPrefetch: true */ './pages/StaffPage'));
@@ -74,7 +75,8 @@ const App: React.FC = () => (
             <Route path="products"    element={<ProductsPage />} />
             <Route path="categories"  element={<CategoriesPage />} />
             <Route path="pos"       element={<PosPage />} />
-            <Route path="sales"     element={<SalesHistoryPage />} />
+            <Route path="sales"         element={<SalesHistoryPage />} />
+            <Route path="transactions"  element={<TransactionsPage />} />
             <Route path="orders"    element={<OrdersPage />} />
             <Route path="reports"   element={<ReportsPage />} />
             <Route path="staff"     element={<StaffPage />} />

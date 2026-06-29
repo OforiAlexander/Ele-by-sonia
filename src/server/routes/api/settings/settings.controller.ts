@@ -5,6 +5,13 @@ import { writeAuditLog } from '../../../services/audit/log';
 import AuditLog from '../../../models/AuditLog';
 import logger from '../../../services/logger';
 
+export async function listPublicSettingsController(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+        const data = await SettingsService.listPublicSettings();
+        res.json({ code: CODES.OK, data });
+    } catch (err) { next(err); }
+}
+
 export async function listSettingsController(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
         const data = await SettingsService.listSettings();

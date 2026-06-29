@@ -17,14 +17,16 @@ export interface SendMailOptions {
   subject: string;
   html: string;
   text?: string;
+  cc?: string;
 }
 
 export async function sendMail(options: SendMailOptions): Promise<void> {
-  const { to, subject, html, text } = options;
+  const { to, subject, html, text, cc } = options;
 
   await transporter.sendMail({
     from: process.env.MAIL_FROM,
     to,
+    cc,
     subject,
     html,
     text: text ?? html.replace(/<[^>]+>/g, ''),

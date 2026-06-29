@@ -3,6 +3,8 @@ import crypto from 'crypto';
 import User from '../../../models/User';
 import { sendMail } from '../../../services/mail/send-mail';
 import { verifyRecaptcha } from '../../../services/recaptcha';
+import { get } from '../../../startup/settingsCache';
+import { SETTINGS } from '../../../constants/settings';
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const OTP_MAX_ATTEMPTS = 3;
@@ -13,6 +15,24 @@ export type SafeUser = Omit<User, 'password_hash' | 'otp_code' | 'reset_token'>;
 function stripSensitive(user: User): SafeUser {
     const { password_hash, otp_code, reset_token, ...safe } = user as any;
     return safe;
+}
+
+function getMaxLoginAttempts(): number {
+    const raw = get(SETTINGS.MAX_LOGIN_ATTEMPTS)?.value ?? '5';
+    const v = parseInt(raw, 10);
+    return !isNaN(v) && v > 0 ? v : 5;
+}
+
+function getLockoutMs(): number {
+    const raw = get(SETTINGS.LOCKOUT_DURATION_MINUTES)?.value ?? '30';
+    const v = parseInt(raw, 10);
+    return (!isNaN(v) && v > 0 ? v : 30) * 60 * 1000;
+}
+
+function getPasswordChangeDays(): number {
+    const raw = get(SETTINGS.REQUIRE_PASSWORD_CHANGE_DAYS)?.value ?? '0';
+    const v = parseInt(raw, 10);
+    return !isNaN(v) && v >= 0 ? v : 0;
 }
 
 export async function login(
@@ -30,10 +50,48 @@ export async function login(
 
     if (!user) throw Object.assign(new Error('Invalid credentials.'), { status: 401, code: 'INVALID_CREDENTIALS' });
 
+    if (user.locked_until && new Date(user.locked_until) > new Date()) {
+        throw Object.assign(
+            new Error('Account is temporarily locked due to too many failed login attempts.'),
+            { status: 403, code: 'ACCOUNT_LOCKED' }
+        );
+    }
+
     const match = await bcrypt.compare(password, user.password_hash);
-    if (!match) throw Object.assign(new Error('Invalid credentials.'), { status: 401, code: 'INVALID_CREDENTIALS' });
+
+    if (!match) {
+        const maxAttempts = getMaxLoginAttempts();
+        const newAttempts = (user.failed_login_attempts ?? 0) + 1;
+        const patch: Record<string, unknown> = { failed_login_attempts: newAttempts };
+
+        if (newAttempts >= maxAttempts) {
+            patch.locked_until = new Date(Date.now() + getLockoutMs()).toISOString();
+        }
+
+        await User.query().patchAndFetchById(user.id, patch);
+        throw Object.assign(new Error('Invalid credentials.'), { status: 401, code: 'INVALID_CREDENTIALS' });
+    }
 
     if (!user.is_active) throw Object.assign(new Error('Account is deactivated.'), { status: 403, code: 'ACCOUNT_INACTIVE' });
+
+    await User.query().patchAndFetchById(user.id, {
+        failed_login_attempts: 0,
+        locked_until: null as any,
+    });
+
+    const changeDays = getPasswordChangeDays();
+    if (changeDays > 0) {
+        const lastChange = user.last_password_change_at
+            ? new Date(user.last_password_change_at)
+            : null;
+        const expired = !lastChange || (Date.now() - lastChange.getTime()) > changeDays * 24 * 60 * 60 * 1000;
+        if (expired) {
+            throw Object.assign(
+                new Error('Your password has expired. Please change it to continue.'),
+                { status: 403, code: 'MUST_CHANGE_PASSWORD' }
+            );
+        }
+    }
 
     return stripSensitive(user);
 }
@@ -59,6 +117,7 @@ export async function changePassword(userId: string, currentPassword: string, ne
     await User.query().patchAndFetchById(userId, {
         password_hash: hash,
         must_change_password: false,
+        last_password_change_at: new Date().toISOString(),
         sessions_invalidated_at: new Date().toISOString(),
     });
 }
@@ -123,6 +182,7 @@ export async function resetPassword(token: string, newPassword: string): Promise
     await User.query().patchAndFetchById(user.id, {
         password_hash: hash,
         must_change_password: false,
+        last_password_change_at: new Date().toISOString(),
         reset_token: null as any,
         reset_token_expires_at: null as any,
         sessions_invalidated_at: new Date().toISOString(),

@@ -1,41 +1,23 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
-    Group, Text, Button, Badge, Select, Table, Pagination,
-    Drawer, Stack, Divider, Loader, Center,
+    Group, Text, Button, Table, Pagination,
+    Stack, Loader, Center,
 } from '@mantine/core';
-import { DatePickerInput } from '@mantine/dates';
 import { Link } from 'react-router-dom';
 import api from '../../../common/api';
 import { useAuth } from '../../../common/context/AuthContext';
 import { t } from '../../../common/translations';
 import { KEYS } from '../../../common/keys';
 import { formatPrice } from '../../../common/utils/formatCurrency';
+import { formatDateTime, toLocalDate } from '../../../common/utils/dateUtils';
 import { showConfirm, showSuccess, showError } from '../../../common/utils/swal';
+import SaleStatusBadge from '../../../common/components/sales/SaleStatusBadge';
+import SaleMethodLabel from '../../../common/components/sales/SaleMethodLabel';
+import SalesFilterBar from '../../../common/components/sales/SalesFilterBar';
+import SaleDetailDrawer from '../../../common/components/sales/SaleDetailDrawer';
 import type { Sale } from '../../../common/types';
 
 const PAGE_SIZE = 20;
-
-function statusBadge(sale: Sale) {
-    if (sale.voided_at) return <Badge color="gray" size="sm">{t(KEYS.salesHistory.status.voided)}</Badge>;
-    if (sale.payment_status === 'paid')    return <Badge color="green" size="sm">{t(KEYS.salesHistory.status.paid)}</Badge>;
-    if (sale.payment_status === 'pending') return <Badge color="yellow" size="sm">{t(KEYS.salesHistory.status.pending)}</Badge>;
-    if (sale.payment_status === 'failed')  return <Badge color="red" size="sm">{t(KEYS.salesHistory.status.failed)}</Badge>;
-    return <Badge size="sm">{sale.payment_status}</Badge>;
-}
-
-function methodBadge(method: string) {
-    if (method === 'momo') return <Badge color="yellow" size="xs" variant="light">Mobile Money</Badge>;
-    if (method === 'cash') return <Badge color="green" size="xs" variant="light">Cash</Badge>;
-    return <Badge size="xs" variant="light">{method}</Badge>;
-}
-
-function formatDateTime(iso: string): string {
-    return new Date(iso).toLocaleString('en-GH', {
-        timeZone: 'Africa/Accra',
-        day: 'numeric', month: 'short', year: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-    });
-}
 
 const SalesHistoryPage: React.FC = () => {
     const { user } = useAuth();
@@ -55,17 +37,18 @@ const SalesHistoryPage: React.FC = () => {
     const [voiding, setVoiding]             = useState(false);
 
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    const hasFilters = !!(filterFrom || filterTo || filterMethod);
 
     const fetchSales = useCallback(async (p: number) => {
         setLoading(true);
         try {
             const params: Record<string, string | number> = {
-                page: p,
-                limit: PAGE_SIZE,
+                page:           p,
+                limit:          PAGE_SIZE,
                 include_voided: 'true',
             };
-            if (filterFrom)   params.from = filterFrom.toISOString().slice(0, 10);
-            if (filterTo)     params.to   = filterTo.toISOString().slice(0, 10);
+            if (filterFrom)   params.from           = toLocalDate(filterFrom);
+            if (filterTo)     params.to             = toLocalDate(filterTo);
             if (filterMethod) params.payment_method = filterMethod;
 
             const res = await api.get('/sales', { params });
@@ -78,13 +61,13 @@ const SalesHistoryPage: React.FC = () => {
         }
     }, [filterFrom, filterTo, filterMethod]);
 
-    useEffect(() => {
-        fetchSales(page);
-    }, [fetchSales, page]);
+    const handleApply = () => { setPage(1); fetchSales(1); };
 
-    const handleFilterApply = () => {
+    const handleClear = () => {
+        setFilterFrom(null);
+        setFilterTo(null);
+        setFilterMethod(null);
         setPage(1);
-        fetchSales(1);
     };
 
     const openDetail = async (sale: Sale) => {
@@ -94,7 +77,7 @@ const SalesHistoryPage: React.FC = () => {
             const res = await api.get(`/sales/${sale.id}`);
             setDetailSale(res.data.data);
         } catch {
-            // keep the list-level data if detail load fails
+            // keep list-level data if detail load fails
         } finally {
             setDetailLoading(false);
         }
@@ -134,61 +117,18 @@ const SalesHistoryPage: React.FC = () => {
                 </Group>
             </div>
 
-            {/* Filters */}
-            <Group mb="md" gap="sm" align="flex-end" wrap="wrap">
-                <DatePickerInput
-                    label={t(KEYS.salesHistory.filter.from)}
-                    placeholder="Pick date"
-                    value={filterFrom}
-                    onChange={(v) => setFilterFrom(v)}
-                    clearable
-                    size="sm"
-                    style={{ width: 160 }}
-                />
-                <DatePickerInput
-                    label={t(KEYS.salesHistory.filter.to)}
-                    placeholder="Pick date"
-                    value={filterTo}
-                    onChange={(v) => setFilterTo(v)}
-                    clearable
-                    size="sm"
-                    style={{ width: 160 }}
-                />
-                <Select
-                    label={t(KEYS.salesHistory.filter.method)}
-                    placeholder={t(KEYS.salesHistory.filter.allMethods)}
-                    value={filterMethod}
-                    onChange={setFilterMethod}
-                    data={[
-                        { value: 'cash', label: 'Cash' },
-                        { value: 'momo', label: 'Mobile Money' },
-                    ]}
-                    clearable
-                    size="sm"
-                    style={{ width: 170 }}
-                />
-                <Button size="sm" color="green" onClick={handleFilterApply} style={{ marginTop: 24 }}>
-                    Apply
-                </Button>
-                {(filterFrom || filterTo || filterMethod) && (
-                    <Button
-                        size="sm"
-                        variant="subtle"
-                        color="gray"
-                        style={{ marginTop: 24 }}
-                        onClick={() => {
-                            setFilterFrom(null);
-                            setFilterTo(null);
-                            setFilterMethod(null);
-                            setPage(1);
-                        }}
-                    >
-                        Clear
-                    </Button>
-                )}
-            </Group>
+            <SalesFilterBar
+                filterFrom={filterFrom}
+                filterTo={filterTo}
+                filterMethod={filterMethod}
+                onFromChange={setFilterFrom}
+                onToChange={setFilterTo}
+                onMethodChange={setFilterMethod}
+                onApply={handleApply}
+                onClear={handleClear}
+                hasFilters={hasFilters}
+            />
 
-            {/* Table */}
             {loading ? (
                 <Center py="xl"><Loader size="sm" /></Center>
             ) : sales.length === 0 ? (
@@ -196,7 +136,7 @@ const SalesHistoryPage: React.FC = () => {
                     <Text c="dimmed" size="sm">{t(KEYS.salesHistory.empty)}</Text>
                 </Center>
             ) : (
-                <>
+                <Stack gap="md">
                     <Table striped highlightOnHover withTableBorder withColumnBorders style={{ fontSize: 13 }}>
                         <Table.Thead>
                             <Table.Tr>
@@ -211,10 +151,7 @@ const SalesHistoryPage: React.FC = () => {
                         </Table.Thead>
                         <Table.Tbody>
                             {sales.map((sale) => (
-                                <Table.Tr
-                                    key={sale.id}
-                                    style={{ opacity: sale.voided_at ? 0.6 : 1 }}
-                                >
+                                <Table.Tr key={sale.id} style={{ opacity: sale.voided_at ? 0.6 : 1 }}>
                                     <Table.Td>
                                         <Text size="sm" fw={600} ff="monospace">{sale.sale_number}</Text>
                                     </Table.Td>
@@ -224,19 +161,18 @@ const SalesHistoryPage: React.FC = () => {
                                     <Table.Td>
                                         <Text size="sm">{sale.staff?.name ?? '—'}</Text>
                                     </Table.Td>
-                                    <Table.Td>{methodBadge(sale.payment_method)}</Table.Td>
+                                    <Table.Td>
+                                        <SaleMethodLabel method={sale.payment_method} />
+                                    </Table.Td>
                                     <Table.Td style={{ textAlign: 'right' }}>
                                         <Text size="sm" fw={600}>{formatPrice(Number(sale.amount_due))}</Text>
                                     </Table.Td>
-                                    <Table.Td>{statusBadge(sale)}</Table.Td>
                                     <Table.Td>
-                                        <Button
-                                            size="xs"
-                                            variant="subtle"
-                                            color="green"
-                                            onClick={() => openDetail(sale)}
-                                        >
-                                            View
+                                        <SaleStatusBadge status={sale.payment_status} voided={!!sale.voided_at} />
+                                    </Table.Td>
+                                    <Table.Td>
+                                        <Button size="xs" variant="subtle" color="green" onClick={() => openDetail(sale)}>
+                                            {t(KEYS.common.viewBtn)}
                                         </Button>
                                     </Table.Td>
                                 </Table.Tr>
@@ -245,7 +181,7 @@ const SalesHistoryPage: React.FC = () => {
                     </Table>
 
                     {totalPages > 1 && (
-                        <Group justify="center" mt="lg">
+                        <Group justify="center">
                             <Pagination
                                 total={totalPages}
                                 value={page}
@@ -255,116 +191,17 @@ const SalesHistoryPage: React.FC = () => {
                             />
                         </Group>
                     )}
-                </>
+                </Stack>
             )}
 
-            {/* Detail Drawer */}
-            <Drawer
-                opened={!!detailSale}
+            <SaleDetailDrawer
+                sale={detailSale}
+                loading={detailLoading}
+                canVoid={canVoid}
+                voiding={voiding}
                 onClose={() => setDetailSale(null)}
-                title={detailSale ? `${t(KEYS.salesHistory.detail.title)} — ${detailSale.sale_number}` : t(KEYS.salesHistory.detail.title)}
-                position="right"
-                size="md"
-            >
-                {detailLoading ? (
-                    <Center py="xl"><Loader size="sm" /></Center>
-                ) : detailSale ? (
-                    <Stack gap="sm">
-                        {/* Meta info */}
-                        <Group justify="space-between">
-                            <Text size="sm" c="dimmed">{t(KEYS.salesHistory.detail.date)}</Text>
-                            <Text size="sm">{formatDateTime(detailSale.created_at)}</Text>
-                        </Group>
-                        <Group justify="space-between">
-                            <Text size="sm" c="dimmed">{t(KEYS.salesHistory.detail.cashier)}</Text>
-                            <Text size="sm">{detailSale.staff?.name ?? '—'}</Text>
-                        </Group>
-                        <Group justify="space-between">
-                            <Text size="sm" c="dimmed">{t(KEYS.salesHistory.detail.method)}</Text>
-                            {methodBadge(detailSale.payment_method)}
-                        </Group>
-                        {Number(detailSale.discount) > 0 && (
-                            <Group justify="space-between">
-                                <Text size="sm" c="dimmed">{t(KEYS.salesHistory.detail.discount)}</Text>
-                                <Text size="sm" c="red">- {formatPrice(Number(detailSale.discount))}</Text>
-                            </Group>
-                        )}
-                        <Group justify="space-between">
-                            <Text size="sm" fw={700}>{t(KEYS.salesHistory.detail.amount)}</Text>
-                            <Text size="sm" fw={700}>{formatPrice(Number(detailSale.amount_due))}</Text>
-                        </Group>
-                        {detailSale.change_given && Number(detailSale.change_given) > 0 && (
-                            <Group justify="space-between">
-                                <Text size="sm" c="dimmed">{t(KEYS.salesHistory.detail.change)}</Text>
-                                <Text size="sm">{formatPrice(Number(detailSale.change_given))}</Text>
-                            </Group>
-                        )}
-                        <Group justify="space-between">
-                            <Text size="sm" c="dimmed">Status</Text>
-                            {statusBadge(detailSale)}
-                        </Group>
-
-                        <Divider my="xs" />
-
-                        {/* Line items */}
-                        <Text size="sm" fw={600}>{t(KEYS.salesHistory.detail.itemsTitle)}</Text>
-                        {detailSale.items && detailSale.items.length > 0 ? (
-                            <Table withTableBorder withColumnBorders style={{ fontSize: 12 }}>
-                                <Table.Thead>
-                                    <Table.Tr>
-                                        <Table.Th>{t(KEYS.salesHistory.detail.itemProduct)}</Table.Th>
-                                        <Table.Th style={{ textAlign: 'center' }}>{t(KEYS.salesHistory.detail.itemQty)}</Table.Th>
-                                        <Table.Th style={{ textAlign: 'right' }}>{t(KEYS.salesHistory.detail.itemPrice)}</Table.Th>
-                                        <Table.Th style={{ textAlign: 'right' }}>{t(KEYS.salesHistory.detail.itemTotal)}</Table.Th>
-                                    </Table.Tr>
-                                </Table.Thead>
-                                <Table.Tbody>
-                                    {detailSale.items.map((item) => (
-                                        <Table.Tr key={item.id}>
-                                            <Table.Td>
-                                                <Text size="xs" fw={600}>{item.variant?.product_name ?? '—'}</Text>
-                                                {item.variant?.sku && (
-                                                    <Text size="xs" c="dimmed">{item.variant.sku}</Text>
-                                                )}
-                                            </Table.Td>
-                                            <Table.Td style={{ textAlign: 'center' }}>{item.quantity}</Table.Td>
-                                            <Table.Td style={{ textAlign: 'right' }}>{formatPrice(Number(item.unit_price))}</Table.Td>
-                                            <Table.Td style={{ textAlign: 'right' }}>{formatPrice(Number(item.line_total))}</Table.Td>
-                                        </Table.Tr>
-                                    ))}
-                                </Table.Tbody>
-                            </Table>
-                        ) : (
-                            <Text size="sm" c="dimmed">No item detail available.</Text>
-                        )}
-
-                        {/* Void action */}
-                        {canVoid && !detailSale.voided_at && detailSale.payment_status === 'paid' && (
-                            <>
-                                <Divider my="xs" />
-                                <Button
-                                    color="red"
-                                    variant="light"
-                                    loading={voiding}
-                                    onClick={handleVoid}
-                                    fullWidth
-                                >
-                                    {t(KEYS.salesHistory.detail.voidBtn)}
-                                </Button>
-                            </>
-                        )}
-
-                        <Button
-                            variant="subtle"
-                            color="gray"
-                            onClick={() => setDetailSale(null)}
-                            fullWidth
-                        >
-                            {t(KEYS.salesHistory.detail.close)}
-                        </Button>
-                    </Stack>
-                ) : null}
-            </Drawer>
+                onVoid={handleVoid}
+            />
         </div>
     );
 };

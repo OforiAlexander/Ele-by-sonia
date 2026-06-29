@@ -1,2 +1,2 @@
 export { buildEodReportHtml, buildWeeklyReportHtml } from './html';
-export type { EodReportData, WeeklyReportData } from './html';
+export type { EodReportData, WeeklyReportData, SlowMovingItem, OverstockItem } from './html';

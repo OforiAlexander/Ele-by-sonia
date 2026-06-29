@@ -1,50 +1,74 @@
 import ProductVariant from '../models/ProductVariant';
-import Setting from '../models/Setting';
-import { sendMail } from '../services/mail/send-mail';
+import { ensureLoaded, get } from '../startup/settingsCache';
 import { SETTINGS } from '../constants/settings';
+import { sendMail } from '../services/mail/send-mail';
+import logger from '../services/logger';
+
+function parseRecipients(raw: string): string {
+    return raw
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .join(', ');
+}
 
 export async function runLowStockAlert(): Promise<void> {
-  const alertEnabledSetting = await Setting.query().findOne({ name: SETTINGS.LOW_STOCK_ALERT_ENABLED });
-  if (alertEnabledSetting?.value !== 'true') return;
+    await ensureLoaded();
 
-  const lowVariants = await ProductVariant.query()
-    .whereRaw('stock <= low_stock_threshold')
-    .where({ is_active: true })
-    .withGraphFetched('product');
+    const alertEnabled = get(SETTINGS.LOW_STOCK_ALERT_ENABLED)?.value === 'true';
+    if (!alertEnabled) return;
 
-  if (lowVariants.length === 0) return;
+    const ownerEmail = process.env.OWNER_EMAIL;
+    if (!ownerEmail) {
+        logger.warn('[low-stock] OWNER_EMAIL not set, skipping alert');
+        return;
+    }
 
-  const ownerEmail = process.env.OWNER_EMAIL;
-  if (!ownerEmail) return;
+    const businessName = get(SETTINGS.BUSINESS_NAME)?.value ?? 'Elegance by Sconia';
+    const extraRecipients = parseRecipients(get(SETTINGS.LOW_STOCK_ALERT_RECIPIENTS)?.value ?? '');
 
-  const rows = lowVariants
-    .map((v: any) => {
-      const productName = v.product?.name ?? 'Unknown Product';
-      return `<tr>
-        <td>${productName}</td>
-        <td>${v.size ?? '—'}</td>
-        <td>${v.colour ?? '—'}</td>
-        <td>${v.stock}</td>
-        <td>${v.low_stock_threshold}</td>
+    const lowVariants = await ProductVariant.query()
+        .whereRaw('stock <= low_stock_threshold')
+        .where({ is_active: true })
+        .withGraphFetched('product');
+
+    if (lowVariants.length === 0) return;
+
+    const rows = lowVariants
+        .map((v: any) => {
+            const productName = v.product?.name ?? 'Unknown Product';
+            return `<tr>
+        <td style="padding:6px 10px;border:1px solid #ddd;">${productName}</td>
+        <td style="padding:6px 10px;border:1px solid #ddd;">${v.sku ?? '—'}</td>
+        <td style="padding:6px 10px;border:1px solid #ddd;">${v.stock}</td>
+        <td style="padding:6px 10px;border:1px solid #ddd;">${v.low_stock_threshold}</td>
       </tr>`;
-    })
-    .join('');
+        })
+        .join('');
 
-  const html = `
-    <h2>Low Stock Alert Elegance by Sconia</h2>
-    <p>The following variants are at or below their low stock threshold:</p>
-    <table border="1" cellpadding="6">
+    const html = `
+    <h2 style="color:#1a1a1a;">Low Stock Alert — ${businessName}</h2>
+    <p>The following variants are at or below their low-stock threshold and need restocking:</p>
+    <table style="border-collapse:collapse;width:100%;font-family:sans-serif;font-size:14px;">
       <thead>
-        <tr><th>Product</th><th>Size</th><th>Colour</th><th>Stock</th><th>Threshold</th></tr>
+        <tr style="background:#f5f5f5;">
+          <th style="padding:6px 10px;border:1px solid #ddd;text-align:left;">Product</th>
+          <th style="padding:6px 10px;border:1px solid #ddd;text-align:left;">SKU</th>
+          <th style="padding:6px 10px;border:1px solid #ddd;text-align:left;">Stock</th>
+          <th style="padding:6px 10px;border:1px solid #ddd;text-align:left;">Threshold</th>
+        </tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>
-    <p>Please restock soon.</p>
+    <p style="margin-top:16px;color:#666;">Please restock soon to avoid selling out.</p>
   `;
 
-  await sendMail({
-    to: ownerEmail,
-    subject: `Low Stock Alert — ${lowVariants.length} variant(s) need restocking`,
-    html,
-  });
+    await sendMail({
+        to:      ownerEmail,
+        cc:      extraRecipients || undefined,
+        subject: `Low Stock Alert — ${lowVariants.length} variant(s) need restocking`,
+        html,
+    });
+
+    logger.info('[low-stock] Alert sent to %s for %d variant(s)', ownerEmail, lowVariants.length);
 }

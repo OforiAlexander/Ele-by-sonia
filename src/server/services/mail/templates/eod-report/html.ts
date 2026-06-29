@@ -30,10 +30,27 @@ const baseStyles = `
   .net-label { font-size: 12px; color: #555; text-transform: uppercase; letter-spacing: 0.8px; }
   .net-amount { font-size: 22px; font-weight: bold; color: #1a1a2e; }
   .footer { padding: 20px 32px; background: #f8f8f8; font-size: 12px; color: #888; }
+  .alert-list { margin: 0; padding: 0 0 0 18px; color: #555; }
+  .alert-list li { padding: 3px 0; }
 `;
+
+export interface SlowMovingItem {
+    product_name: string;
+    sku:          string;
+    stock:        number;
+    last_sold:    string | null;
+}
+
+export interface OverstockItem {
+    product_name: string;
+    sku:          string;
+    stock:        number;
+    threshold:    number;
+}
 
 export interface EodReportData {
     businessName:      string;
+    businessTagline?:  string;
     reportDate:        Date;
     cashCount:         number;
     cashTotal:         number;
@@ -52,11 +69,72 @@ export interface EodReportData {
     levyTotal:         number;
     netCashExpected:   number;
     generatedAt:       Date;
+    showCogs?:         boolean;
+    showLevy?:         boolean;
+    slowMoving?:       SlowMovingItem[];
+    overstock?:        OverstockItem[];
 }
 
 export interface WeeklyReportData extends EodReportData {
     periodStart: Date;
     periodEnd:   Date;
+}
+
+function buildSlowMovingSection(items: SlowMovingItem[]): string {
+    if (!items.length) return '';
+    return `
+  <div class="section">
+    <p class="section-title">Slow-Moving Stock</p>
+    <ul class="alert-list">
+      ${items.map((i) => `<li><strong>${i.product_name}</strong> (SKU: ${i.sku}) — ${i.stock} in stock, last sold: ${i.last_sold ?? 'never'}</li>`).join('')}
+    </ul>
+  </div>`;
+}
+
+function buildOverstockSection(items: OverstockItem[]): string {
+    if (!items.length) return '';
+    return `
+  <div class="section">
+    <p class="section-title">Overstock Alerts</p>
+    <ul class="alert-list">
+      ${items.map((i) => `<li><strong>${i.product_name}</strong> (SKU: ${i.sku}) — ${i.stock} in stock vs threshold of ${i.threshold}</li>`).join('')}
+    </ul>
+  </div>`;
+}
+
+function buildProfitabilitySection(data: EodReportData): string {
+    if (data.showCogs === false) return '';
+    return `
+  <div class="section">
+    <p class="section-title">Profitability</p>
+    <table>
+      <tr>
+        <td class="label">Cost of Goods Sold</td>
+        <td class="amount" style="color:#c0392b;">${formatGhs(data.cogsTotal)}</td>
+        <td class="count">${data.unitsSold} unit${data.unitsSold !== 1 ? 's' : ''}</td>
+      </tr>
+      <tr class="divider">
+        <td class="label total-row">Gross Profit</td>
+        <td class="amount total-row" style="color:#27ae60;">${formatGhs(data.grossProfit)}</td>
+        <td class="count"></td>
+      </tr>
+    </table>
+  </div>`;
+}
+
+function buildLevySection(data: EodReportData, label: string): string {
+    if (data.showLevy === false || data.levyTotal <= 0) return '';
+    return `
+  <div class="section">
+    <p class="section-title">Inventory Levy (Internal)</p>
+    <table>
+      <tr>
+        <td class="label">${label}</td>
+        <td class="amount">${formatGhs(data.levyTotal)}</td>
+        <td class="count"></td>
+      </tr>
+    </table>
+  </div>`;
 }
 
 export function buildEodReportHtml(data: EodReportData): string {
@@ -67,6 +145,7 @@ export function buildEodReportHtml(data: EodReportData): string {
 <div class="wrapper">
   <div class="header">
     <h1>${data.businessName}</h1>
+    ${data.businessTagline ? `<p style="margin:0 0 6px;font-size:12px;opacity:0.65;font-style:italic;">${data.businessTagline}</p>` : ''}
     <p>End-of-Day Sales Report &nbsp;&middot;&nbsp; ${formatDate(data.reportDate)}</p>
   </div>
 
@@ -91,21 +170,7 @@ export function buildEodReportHtml(data: EodReportData): string {
     </table>
   </div>
 
-  <div class="section">
-    <p class="section-title">Profitability</p>
-    <table>
-      <tr>
-        <td class="label">Cost of Goods Sold</td>
-        <td class="amount" style="color:#c0392b;">${formatGhs(data.cogsTotal)}</td>
-        <td class="count">${data.unitsSold} unit${data.unitsSold !== 1 ? 's' : ''}</td>
-      </tr>
-      <tr class="divider">
-        <td class="label total-row">Gross Profit</td>
-        <td class="amount total-row" style="color:#27ae60;">${formatGhs(data.grossProfit)}</td>
-        <td class="count"></td>
-      </tr>
-    </table>
-  </div>
+  ${buildProfitabilitySection(data)}
 
   <div class="section">
     <p class="section-title">Deductions</p>
@@ -136,17 +201,9 @@ export function buildEodReportHtml(data: EodReportData): string {
     </div>
   </div>
 
-  ${data.levyTotal > 0 ? `
-  <div class="section">
-    <p class="section-title">Inventory Levy (Internal)</p>
-    <table>
-      <tr>
-        <td class="label">Total Levy Accrued Today</td>
-        <td class="amount">${formatGhs(data.levyTotal)}</td>
-        <td class="count"></td>
-      </tr>
-    </table>
-  </div>` : ''}
+  ${buildLevySection(data, 'Total Levy Accrued Today')}
+  ${buildSlowMovingSection(data.slowMoving ?? [])}
+  ${buildOverstockSection(data.overstock ?? [])}
 
   <div class="footer">
     Report generated ${data.generatedAt.toLocaleString('en-GH', { timeZone: 'Africa/Accra' })} &nbsp;&middot;&nbsp; ${data.businessName}
@@ -164,6 +221,7 @@ export function buildWeeklyReportHtml(data: WeeklyReportData): string {
 <div class="wrapper">
   <div class="header">
     <h1>${data.businessName}</h1>
+    ${data.businessTagline ? `<p style="margin:0 0 6px;font-size:12px;opacity:0.65;font-style:italic;">${data.businessTagline}</p>` : ''}
     <p>Weekly Sales Report &nbsp;&middot;&nbsp; ${formatDateRange(data.periodStart, data.periodEnd)}</p>
   </div>
 
@@ -188,21 +246,7 @@ export function buildWeeklyReportHtml(data: WeeklyReportData): string {
     </table>
   </div>
 
-  <div class="section">
-    <p class="section-title">Profitability</p>
-    <table>
-      <tr>
-        <td class="label">Cost of Goods Sold</td>
-        <td class="amount" style="color:#c0392b;">${formatGhs(data.cogsTotal)}</td>
-        <td class="count">${data.unitsSold} unit${data.unitsSold !== 1 ? 's' : ''}</td>
-      </tr>
-      <tr class="divider">
-        <td class="label total-row">Gross Profit</td>
-        <td class="amount total-row" style="color:#27ae60;">${formatGhs(data.grossProfit)}</td>
-        <td class="count"></td>
-      </tr>
-    </table>
-  </div>
+  ${buildProfitabilitySection(data)}
 
   <div class="section">
     <p class="section-title">Deductions</p>
@@ -233,17 +277,9 @@ export function buildWeeklyReportHtml(data: WeeklyReportData): string {
     </div>
   </div>
 
-  ${data.levyTotal > 0 ? `
-  <div class="section">
-    <p class="section-title">Inventory Levy (Internal)</p>
-    <table>
-      <tr>
-        <td class="label">Total Levy Accrued This Week</td>
-        <td class="amount">${formatGhs(data.levyTotal)}</td>
-        <td class="count"></td>
-      </tr>
-    </table>
-  </div>` : ''}
+  ${buildLevySection(data, 'Total Levy Accrued This Week')}
+  ${buildSlowMovingSection(data.slowMoving ?? [])}
+  ${buildOverstockSection(data.overstock ?? [])}
 
   <div class="footer">
     Report generated ${data.generatedAt.toLocaleString('en-GH', { timeZone: 'Africa/Accra' })} &nbsp;&middot;&nbsp; ${data.businessName}

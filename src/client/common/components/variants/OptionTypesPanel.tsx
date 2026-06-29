@@ -144,7 +144,7 @@ const OptionTypesPanel: React.FC<Props> = ({ productId, optionTypes, canEdit, on
                   size="xs"
                   placeholder={t(KEYS.variants.options.addValuePlaceholder)}
                   value={valueInputs[ot.id] ?? ''}
-                  onChange={(e) => setValueInputs((s) => ({ ...s, [ot.id]: e.currentTarget.value }))}
+                  onChange={(e) => { const v = e.currentTarget.value; setValueInputs((s) => ({ ...s, [ot.id]: v })); }}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddValue(ot.id); } }}
                   style={{ flex: 1 }}
                 />

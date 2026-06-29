@@ -18,6 +18,7 @@ export const PERMISSIONS = {
   SALES_VOID: 'sales.void',
   SALES_RETURN: 'sales.return',
   SALES_OVERRIDE_PRICE: 'sales.override_price',
+  SALES_VERIFY_PAYMENT: 'sales.verify_payment',
   STAFF_VIEW: 'staff.view',
   STAFF_CREATE: 'staff.create',
   STAFF_UPDATE: 'staff.update',
@@ -65,7 +66,8 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { name: PERMISSIONS.SALES_DISCOUNT,      label: 'Apply a discount to a sale',             resource: 'sales',    is_sensitive: true  },
   { name: PERMISSIONS.SALES_VOID,           label: 'Void a completed sale',                  resource: 'sales',    is_sensitive: true  },
   { name: PERMISSIONS.SALES_RETURN,         label: 'Process a customer return',              resource: 'sales',    is_sensitive: true  },
-  { name: PERMISSIONS.SALES_OVERRIDE_PRICE, label: 'Override the selling price on a sale',  resource: 'sales',    is_sensitive: true  },
+  { name: PERMISSIONS.SALES_OVERRIDE_PRICE,   label: 'Override the selling price on a sale',          resource: 'sales', is_sensitive: true  },
+  { name: PERMISSIONS.SALES_VERIFY_PAYMENT,   label: 'Confirm a pending mobile money payment',         resource: 'sales', is_sensitive: true  },
 
   { name: PERMISSIONS.STAFF_VIEW,          label: 'View the list of staff members',         resource: 'staff',    is_sensitive: false },
   { name: PERMISSIONS.STAFF_CREATE,        label: 'Add a new staff account',                resource: 'staff',    is_sensitive: false },

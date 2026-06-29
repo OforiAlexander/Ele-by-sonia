@@ -9,6 +9,7 @@ import {
     getSaleController,
     voidSaleController,
     processSaleReturnController,
+    verifyPaymentController,
 } from './sales.controller';
 
 const router = Router();
@@ -71,7 +72,9 @@ router.get(
     query('from').optional().isISO8601(),
     query('to').optional().isISO8601(),
     query('payment_method').optional().isIn(['cash', 'momo']),
+    query('payment_status').optional().isIn(['pending', 'paid', 'failed']),
     query('include_voided').optional().isBoolean(),
+    query('include_stats').optional().isBoolean(),
     checkForValidationErrors,
     listSalesController,
 );
@@ -92,6 +95,15 @@ router.post(
     param('id').isUUID(),
     checkForValidationErrors,
     voidSaleController,
+);
+
+router.post(
+    '/:id/verify-payment',
+    isLoggedIn,
+    hasPermission('can_verify_payment'),
+    param('id').isUUID(),
+    checkForValidationErrors,
+    verifyPaymentController,
 );
 
 router.post(

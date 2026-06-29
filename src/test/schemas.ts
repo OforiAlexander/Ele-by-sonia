@@ -61,14 +61,21 @@ export const productVariantSchema = Yup.object({
 }).required();
 
 // ─── Setting ─────────────────────────────────────────────────────────────────
-// Mirrors: src/client/common/types/index.ts → Setting
+// Mirrors: src/client/common/types/index.ts → AppSetting
 export const settingSchema = Yup.object({
-  id: Yup.string().uuid().required(),
-  name: Yup.string().required(),
-  label: Yup.string().required(),
-  value: Yup.string().defined(),
-  group: Yup.string().required(),
-  editable: Yup.boolean().required(),
+  id:               Yup.string().uuid().required(),
+  name:             Yup.string().required(),
+  label:            Yup.string().required(),
+  value:            Yup.string().defined(),
+  group:            Yup.string().required(),
+  editable:         Yup.boolean().required(),
+  type:             Yup.string().oneOf(['string', 'textarea', 'boolean', 'number', 'time', 'enum']).required(),
+  unit:             Yup.string().nullable().defined(),
+  hint:             Yup.string().nullable().defined(),
+  options:          Yup.array().of(Yup.string().required()).nullable().defined(),
+  min:              Yup.number().nullable().defined(),
+  max:              Yup.number().nullable().defined(),
+  restart_required: Yup.boolean().required(),
 }).required();
 
 // ─── Sale ────────────────────────────────────────────────────────────────────
@@ -77,12 +84,16 @@ export const settingSchema = Yup.object({
 export const saleSchema = Yup.object({
   id: Yup.string().uuid().required(),
   sale_number: Yup.string().required(),
-  payment_method: Yup.string().oneOf(['cash', 'momo']).required(),
+  payment_method: Yup.string().oneOf(['cash', 'momo', 'split']).required(),
   payment_status: Yup.string().required(),
   amount_due: Yup.string().required(),
   amount_tendered: Yup.string().nullable().defined(),
   change_given: Yup.string().nullable().defined(),
   discount: Yup.string().required(),
+  vat_amount: Yup.string().required(),
+  nhil_amount: Yup.string().required(),
+  getfund_amount: Yup.string().required(),
+  covid_levy_amount: Yup.string().required(),
   created_at: Yup.string().required(),
 }).required();
 

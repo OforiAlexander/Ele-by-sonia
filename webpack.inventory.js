@@ -17,6 +17,7 @@ module.exports = merge(common, {
       template: './src/client/portals/inventory/index.html',
       filename: 'index.html',
       title: 'Elegance by Sconia — Inventory',
+      favicon: './src/client/common/assets/EBS_bold-01.png',
     }),
     new MiniCssExtractPlugin({ filename: 'inventory.css' }),
   ],

@@ -78,7 +78,7 @@ function requestLoggerMiddleware(req: Request, res: Response, next: NextFunction
     next();
 }
 
-export function createApp() {
+export function createApp(sessionMaxAgeMs?: number) {
     const app = express();
 
     app.use(requestLoggerMiddleware);
@@ -120,7 +120,7 @@ export function createApp() {
             cookie: {
                 secure: process.env.NODE_ENV === 'production',
                 httpOnly: true,
-                maxAge: 7 * 24 * 60 * 60 * 1000,
+                maxAge: sessionMaxAgeMs ?? 7 * 24 * 60 * 60 * 1000,
             },
         })
     );

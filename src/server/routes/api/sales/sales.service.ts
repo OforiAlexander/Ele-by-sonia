@@ -3,6 +3,7 @@ import Sale from '../../../models/Sale';
 import { paystack, type MomoProvider } from '../../../services/payment/paystack';
 import { ensureLoaded, get } from '../../../startup/settingsCache';
 import { SETTINGS } from '../../../constants/settings';
+import { sendMail } from '../../../services/mail/send-mail';
 import logger from '../../../services/logger';
 
 function withSaleGraph() {
@@ -21,9 +22,46 @@ function withSaleGraph() {
 
 async function getGlobalDiscountRate(): Promise<number> {
     await ensureLoaded();
-    const setting = get(SETTINGS.SALES_GLOBAL_DISCOUNT_RATE);
-    const rate    = parseFloat(setting?.value ?? '0');
+    const rate = parseFloat(get(SETTINGS.SALES_GLOBAL_DISCOUNT_RATE)?.value ?? '0');
     return isNaN(rate) || rate < 0 || rate > 100 ? 0 : rate;
+}
+
+async function getMaxDiscountPercent(): Promise<number> {
+    const val = parseFloat(get(SETTINGS.MAX_DISCOUNT_PERCENT)?.value ?? '100');
+    return isNaN(val) || val < 0 || val > 100 ? 100 : val;
+}
+
+async function isSplitTenderEnabled(): Promise<boolean> {
+    return get(SETTINGS.SPLIT_TENDER_ENABLED)?.value === 'true';
+}
+
+async function getTaxSettings(): Promise<{
+    vatEnabled:      boolean;
+    nhilEnabled:     boolean;
+    getfundEnabled:  boolean;
+    covidEnabled:    boolean;
+    taxInclusive:    boolean;
+    cashRounding:    boolean;
+    requirePhone:    boolean;
+    allowOverride:   boolean;
+    autoVerify:      boolean;
+}> {
+    await ensureLoaded();
+    return {
+        vatEnabled:     get(SETTINGS.VAT_ENABLED)?.value === 'true',
+        nhilEnabled:    get(SETTINGS.NHIL_ENABLED)?.value === 'true',
+        getfundEnabled: get(SETTINGS.GETFUND_ENABLED)?.value === 'true',
+        covidEnabled:   get(SETTINGS.COVID_LEVY_ENABLED)?.value === 'true',
+        taxInclusive:   get(SETTINGS.TAX_INCLUSIVE_PRICING)?.value !== 'false',
+        cashRounding:   get(SETTINGS.CASH_ROUNDING_ENABLED)?.value === 'true',
+        requirePhone:   get(SETTINGS.REQUIRE_CUSTOMER_PHONE_FOR_MOMO)?.value !== 'false',
+        allowOverride:  get(SETTINGS.ALLOW_PRICE_OVERRIDE)?.value !== 'false',
+        autoVerify:     get(SETTINGS.MOMO_AUTO_VERIFY_ON_WEBHOOK)?.value !== 'false',
+    };
+}
+
+function parseRecipients(raw: string): string {
+    return raw.split(',').map((s) => s.trim()).filter(Boolean).join(', ');
 }
 
 async function getLevySettings(): Promise<{ enabled: boolean; type: 'flat' | 'percent'; amount: number }> {
@@ -42,19 +80,22 @@ function generateMomoReference(): string {
 export async function processSale(
     staffId:          string,
     items:            Array<{ variant_id: string; quantity: number; unit_price_override?: number }>,
-    paymentMethod:    'cash' | 'momo',
+    paymentMethod:    'cash' | 'momo' | 'split',
     amountTendered:   number | undefined,
     manualDiscount:   number,
     note:             string | undefined,
     customerPhone:    string | undefined,
     momoProvider:     MomoProvider | undefined,
     canOverridePrice: boolean,
+    cashSplitAmount?: number,
 ): Promise<Sale> {
     const variantIds = items.map((i) => i.variant_id);
     const variants = await knex('product_variants as pv')
         .join('products as p', 'p.id', 'pv.product_id')
         .whereIn('pv.id', variantIds)
         .select('pv.*', 'p.name as product_name');
+
+    const policySettings = await getTaxSettings();
 
     for (const item of items) {
         const variant = variants.find((v: any) => v.id === item.variant_id);
@@ -79,9 +120,9 @@ export async function processSale(
                 { status: 400, code: 'STOCK_INSUFFICIENT' },
             );
         }
-        if (item.unit_price_override !== undefined && !canOverridePrice) {
+        if (item.unit_price_override !== undefined && (!canOverridePrice || !policySettings.allowOverride)) {
             throw Object.assign(
-                new Error('You do not have permission to override selling prices.'),
+                new Error('Price overrides are not permitted for this sale.'),
                 { status: 403, code: 'FORBIDDEN' },
             );
         }
@@ -99,9 +140,25 @@ export async function processSale(
         return sum + effectiveUnitPrices.get(item.variant_id)! * item.quantity;
     }, 0);
 
+    if (paymentMethod === 'split' && !(await isSplitTenderEnabled())) {
+        throw Object.assign(
+            new Error('Split payment is not enabled for this store.'),
+            { status: 400, code: 'SPLIT_TENDER_DISABLED' },
+        );
+    }
+
     const globalRate     = await getGlobalDiscountRate();
     const globalDiscount = parseFloat(((globalRate / 100) * subtotal).toFixed(2));
     const totalDiscount  = parseFloat((globalDiscount + manualDiscount).toFixed(2));
+
+    const maxDiscountPct    = await getMaxDiscountPercent();
+    const totalDiscountPct  = subtotal > 0 ? (totalDiscount / subtotal) * 100 : 0;
+    if (totalDiscountPct > maxDiscountPct) {
+        throw Object.assign(
+            new Error(`Total discount (${totalDiscountPct.toFixed(1)}%) exceeds the maximum allowed (${maxDiscountPct}%).`),
+            { status: 400, code: 'DISCOUNT_EXCEEDS_MAX' },
+        );
+    }
 
     if (totalDiscount > subtotal) {
         throw Object.assign(
@@ -110,7 +167,40 @@ export async function processSale(
         );
     }
 
-    const amountDue = parseFloat((subtotal - totalDiscount).toFixed(2));
+    let amountDue = parseFloat((subtotal - totalDiscount).toFixed(2));
+
+    // ── Ghana GRA tax computation ────────────────────────────────────────────
+    const VAT_RATE     = 0.15;
+    const NHIL_RATE    = 0.025;
+    const GETFUND_RATE = 0.025;
+    const COVID_RATE   = 0.01;
+
+    const combinedTaxRate =
+        (policySettings.vatEnabled    ? VAT_RATE     : 0) +
+        (policySettings.nhilEnabled   ? NHIL_RATE    : 0) +
+        (policySettings.getfundEnabled? GETFUND_RATE : 0) +
+        (policySettings.covidEnabled  ? COVID_RATE   : 0);
+
+    let vatAmount     = 0;
+    let nhilAmount    = 0;
+    let getfundAmount = 0;
+    let covidAmount   = 0;
+
+    if (combinedTaxRate > 0) {
+        if (policySettings.taxInclusive) {
+            const base     = amountDue / (1 + combinedTaxRate);
+            vatAmount      = policySettings.vatEnabled     ? parseFloat((base * VAT_RATE).toFixed(2))     : 0;
+            nhilAmount     = policySettings.nhilEnabled    ? parseFloat((base * NHIL_RATE).toFixed(2))    : 0;
+            getfundAmount  = policySettings.getfundEnabled ? parseFloat((base * GETFUND_RATE).toFixed(2)) : 0;
+            covidAmount    = policySettings.covidEnabled   ? parseFloat((base * COVID_RATE).toFixed(2))   : 0;
+        } else {
+            vatAmount      = policySettings.vatEnabled     ? parseFloat((amountDue * VAT_RATE).toFixed(2))     : 0;
+            nhilAmount     = policySettings.nhilEnabled    ? parseFloat((amountDue * NHIL_RATE).toFixed(2))    : 0;
+            getfundAmount  = policySettings.getfundEnabled ? parseFloat((amountDue * GETFUND_RATE).toFixed(2)) : 0;
+            covidAmount    = policySettings.covidEnabled   ? parseFloat((amountDue * COVID_RATE).toFixed(2))   : 0;
+            amountDue      = parseFloat((amountDue + vatAmount + nhilAmount + getfundAmount + covidAmount).toFixed(2));
+        }
+    }
 
     if (paymentMethod === 'cash') {
         if (amountTendered === undefined || amountTendered === null) {
@@ -127,8 +217,17 @@ export async function processSale(
         }
     }
 
+    if (paymentMethod === 'split') {
+        if (cashSplitAmount! < 0 || cashSplitAmount! >= amountDue) {
+            throw Object.assign(
+                new Error('cash_split_amount must be between 0 and the amount due (exclusive).'),
+                { status: 400, code: 'VALIDATION_ERROR' },
+            );
+        }
+    }
+
     if (paymentMethod === 'momo') {
-        if (!customerPhone) {
+        if (policySettings.requirePhone && !customerPhone) {
             throw Object.assign(
                 new Error('customer_phone is required for Momo payments.'),
                 { status: 400, code: 'VALIDATION_ERROR' },
@@ -137,6 +236,27 @@ export async function processSale(
         if (!momoProvider) {
             throw Object.assign(
                 new Error('momo_provider is required for Momo payments.'),
+                { status: 400, code: 'VALIDATION_ERROR' },
+            );
+        }
+    }
+
+    if (paymentMethod === 'split') {
+        if (!customerPhone) {
+            throw Object.assign(
+                new Error('customer_phone is required for split payments (Momo portion).'),
+                { status: 400, code: 'VALIDATION_ERROR' },
+            );
+        }
+        if (!momoProvider) {
+            throw Object.assign(
+                new Error('momo_provider is required for split payments.'),
+                { status: 400, code: 'VALIDATION_ERROR' },
+            );
+        }
+        if (cashSplitAmount === undefined || cashSplitAmount === null) {
+            throw Object.assign(
+                new Error('cash_split_amount is required for split payments.'),
                 { status: 400, code: 'VALIDATION_ERROR' },
             );
         }
@@ -156,22 +276,29 @@ export async function processSale(
         levyAmount = parseFloat(levyAmount.toFixed(2));
     }
 
-    const changeGiven   = paymentMethod === 'cash' ? Number(amountTendered) - amountDue : null;
-    const paystackRef   = paymentMethod === 'momo' ? generateMomoReference() : null;
-    const initialStatus = paymentMethod === 'momo'
+    let rawChange = paymentMethod === 'cash' ? Number(amountTendered) - amountDue : null;
+    if (rawChange !== null && policySettings.cashRounding) {
+        rawChange = parseFloat((Math.round(rawChange / 0.5) * 0.5).toFixed(2));
+    }
+    const changeGiven = rawChange;
+
+    const momoSplitAmount   = paymentMethod === 'split' ? parseFloat((amountDue - cashSplitAmount!).toFixed(2)) : null;
+    const paystackRef       = (paymentMethod === 'momo' || paymentMethod === 'split') ? generateMomoReference() : null;
+    const initialStatus     = (paymentMethod === 'momo' || paymentMethod === 'split')
         ? Sale.PAYMENT_STATUS_PENDING
         : Sale.PAYMENT_STATUS_PAID;
 
     const saleId = await knex.transaction(async (trx) => {
         await trx.raw('SELECT pg_advisory_xact_lock(1001)');
 
-        const today  = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-        const prefix = `SL-${today}-`;
-        const result = await trx('sales')
+        const rawPrefix  = get(SETTINGS.SALE_NUMBER_PREFIX)?.value ?? 'SL';
+        const today      = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const prefix     = `${rawPrefix}-${today}-`;
+        const result     = await trx('sales')
             .where('sale_number', 'like', `${prefix}%`)
             .max('sale_number as max')
             .first();
-        const lastSeq    = result?.max ? parseInt((result.max as string).split('-')[2], 10) : 0;
+        const lastSeq    = result?.max ? parseInt((result.max as string).slice(prefix.length), 10) : 0;
         const saleNumber = `${prefix}${String(lastSeq + 1).padStart(4, '0')}`;
 
         const [inserted] = await trx('sales').insert({
@@ -180,10 +307,18 @@ export async function processSale(
             payment_method:     paymentMethod,
             payment_status:     initialStatus,
             amount_due:         amountDue,
-            amount_tendered:    paymentMethod === 'cash' ? amountTendered : null,
+            amount_tendered:    paymentMethod === 'cash'
+                ? amountTendered
+                : paymentMethod === 'split'
+                    ? cashSplitAmount
+                    : null,
             change_given:       changeGiven,
             discount:           totalDiscount,
             levy_amount:        levyAmount,
+            vat_amount:         vatAmount,
+            nhil_amount:        nhilAmount,
+            getfund_amount:     getfundAmount,
+            covid_levy_amount:  covidAmount,
             note:               note ?? null,
             customer_phone:     customerPhone ?? null,
             momo_provider:      momoProvider  ?? null,
@@ -226,11 +361,59 @@ export async function processSale(
         return inserted.id;
     });
 
-    if (paymentMethod === 'momo' && paystackRef) {
-        const amountPesewas = Math.round(amountDue * 100);
+    // ── Inventory intelligence (fire-and-forget, never blocks the sale response) ──
+    (async () => {
+        try {
+            await ensureLoaded();
+            const negAlertEnabled    = get(SETTINGS.NEGATIVE_STOCK_ALERT_ENABLED)?.value === 'true';
+            const autoDeactivate     = get(SETTINGS.AUTO_DEACTIVATE_ZERO_STOCK)?.value === 'true';
+            const largeSaleEnabled   = get(SETTINGS.LARGE_SALE_ALERT_ENABLED)?.value === 'true';
+            const largeSaleThreshold = parseFloat(get(SETTINGS.LARGE_SALE_ALERT_THRESHOLD)?.value ?? '0');
+            const ownerEmail         = process.env.OWNER_EMAIL;
+            const businessName       = get(SETTINGS.BUSINESS_NAME)?.value ?? 'Elegance by Sconia';
+
+            if (negAlertEnabled || autoDeactivate) {
+                const postSaleVariants = await knex('product_variants as pv')
+                    .join('products as p', 'p.id', 'pv.product_id')
+                    .whereIn('pv.id', items.map((i) => i.variant_id))
+                    .select('pv.id', 'pv.stock', 'pv.is_active', 'p.name as product_name');
+
+                for (const v of postSaleVariants) {
+                    if (Number(v.stock) <= 0) {
+                        if (autoDeactivate && v.is_active) {
+                            await knex('product_variants').where({ id: v.id }).update({ is_active: false });
+                        }
+                        if (negAlertEnabled && ownerEmail) {
+                            sendMail({
+                                to:      ownerEmail,
+                                subject: `Out of Stock — ${v.product_name} [${businessName}]`,
+                                html:    `<p><strong>${v.product_name}</strong> has reached zero stock after sale <strong>${saleId}</strong>. Please restock promptly.</p>`,
+                            }).catch((err) => logger.error('[stock-alert] %s', err.message));
+                        }
+                    }
+                }
+            }
+
+            if (largeSaleEnabled && largeSaleThreshold > 0 && amountDue >= largeSaleThreshold && ownerEmail) {
+                sendMail({
+                    to:      ownerEmail,
+                    subject: `Large Sale Alert — GHS ${amountDue.toFixed(2)} [${businessName}]`,
+                    html:    `<p>A large sale of <strong>GHS ${amountDue.toFixed(2)}</strong> was processed (sale ID: ${saleId}). Review it in the dashboard if needed.</p>`,
+                }).catch((err) => logger.error('[large-sale-alert] %s', err.message));
+            }
+        } catch (err: any) {
+            logger.error('[inventory-intelligence] post-sale check failed: %s', err.message);
+        }
+    })();
+
+    if ((paymentMethod === 'momo' || paymentMethod === 'split') && paystackRef) {
+        const chargeAmount  = paymentMethod === 'split' ? momoSplitAmount! : amountDue;
+        const amountPesewas = Math.round(chargeAmount * 100);
+        const currency      = get(SETTINGS.PAYSTACK_CURRENCY)?.value ?? 'GHS';
         paystack.charge({
             email:        `momo-${customerPhone}@pos.internal`,
             amount:       amountPesewas,
+            currency,
             reference:    paystackRef,
             mobile_money: { phone: customerPhone!, provider: momoProvider! },
         }).catch((err) => {
@@ -244,34 +427,122 @@ export async function processSale(
     return (await withSaleGraph().findById(saleId))!;
 }
 
+export interface TransactionStats {
+    totalCount:   number;
+    cashTotal:    number;
+    momoTotal:    number;
+    pendingTotal: number;
+}
+
 export async function listSales(options: {
     page:           number;
     limit:          number;
     from?:          string;
     to?:            string;
     paymentMethod?: string;
+    paymentStatus?: string;
     includeVoided?: boolean;
-}): Promise<{ sales: Sale[]; total: number; page: number; limit: number }> {
-    const { page, limit, from, to, paymentMethod, includeVoided } = options;
+    includeStats?:  boolean;
+}): Promise<{ sales: Sale[]; total: number; page: number; limit: number; stats?: TransactionStats }> {
+    const { page, limit, from, to, paymentMethod, paymentStatus, includeVoided, includeStats } = options;
     const offset = (page - 1) * limit;
 
     let base = Sale.query();
     if (!includeVoided) base = base.whereNull('voided_at');
-    if (from)           base = base.where('created_at', '>=', from);
-    if (to)             base = base.where('created_at', '<=', to);
+    if (from)           base = base.whereRaw('created_at::date >= ?', [from]);
+    if (to)             base = base.whereRaw('created_at::date <= ?', [to]);
     if (paymentMethod)  base = base.where({ payment_method: paymentMethod });
+    if (paymentStatus)  base = base.where({ payment_status: paymentStatus });
 
-    const [sales, countResult] = await Promise.all([
+    const queries: PromiseLike<any>[] = [
         base.clone()
             .withGraphFetched('[staff]')
             .modifyGraph('staff', (b) => b.select('users.id', 'users.name'))
             .orderBy('created_at', 'desc')
             .offset(offset)
-            .limit(limit),
-        base.clone().count('id as count').first(),
-    ]);
+            .limit(limit) as unknown as PromiseLike<any>,
+        base.clone().count('id as count').first() as unknown as PromiseLike<any>,
+    ];
 
-    return { sales, total: Number((countResult as any)?.count ?? 0), page, limit };
+    if (includeStats) {
+        const statsBase = knex('sales').whereNull('voided_at');
+        if (from) statsBase.whereRaw('created_at::date >= ?', [from]);
+        if (to)   statsBase.whereRaw('created_at::date <= ?', [to]);
+        queries.push(
+            statsBase.select(
+                knex.raw('COUNT(*)::int AS total_count'),
+                knex.raw("COALESCE(SUM(CASE WHEN payment_method='cash'  AND payment_status='paid' THEN amount_due ELSE 0 END),0)::numeric AS cash_total"),
+                knex.raw("COALESCE(SUM(CASE WHEN payment_method='momo'  AND payment_status='paid' THEN amount_due ELSE 0 END),0)::numeric AS momo_total"),
+                knex.raw("COALESCE(SUM(CASE WHEN payment_status='pending'                         THEN amount_due ELSE 0 END),0)::numeric AS pending_total"),
+            ).first() as unknown as PromiseLike<any>,
+        );
+    }
+
+    const results = await Promise.all(queries);
+    const [sales, countResult, statsRow] = results as [Sale[], any, any];
+
+    const stats: TransactionStats | undefined = includeStats ? {
+        totalCount:   Number(statsRow?.total_count   ?? 0),
+        cashTotal:    parseFloat(statsRow?.cash_total    ?? '0'),
+        momoTotal:    parseFloat(statsRow?.momo_total    ?? '0'),
+        pendingTotal: parseFloat(statsRow?.pending_total ?? '0'),
+    } : undefined;
+
+    return { sales, total: Number((countResult as any)?.count ?? 0), page, limit, stats };
+}
+
+export async function verifyPayment(saleId: string, staffId: string): Promise<{
+    sale:           Sale;
+    confirmed:      boolean;
+    paystackStatus: string;
+    message:        string;
+}> {
+    const sale = await Sale.query().findById(saleId);
+    if (!sale) throw Object.assign(new Error('Sale not found.'), { status: 404, code: 'NOT_FOUND' });
+    if (sale.payment_method !== 'momo') {
+        throw Object.assign(new Error('Payment verification is only available for Mobile Money transactions.'), { status: 400, code: 'INVALID_OPERATION' });
+    }
+    if (!sale.paystack_reference) {
+        throw Object.assign(new Error('This sale has no Paystack reference to verify.'), { status: 400, code: 'INVALID_OPERATION' });
+    }
+    if (sale.voided_at) {
+        throw Object.assign(new Error('Cannot verify payment on a voided sale.'), { status: 400, code: 'INVALID_OPERATION' });
+    }
+    if (sale.payment_status === Sale.PAYMENT_STATUS_PAID) {
+        throw Object.assign(new Error('This payment is already confirmed as paid.'), { status: 400, code: 'ALREADY_PAID' });
+    }
+
+    let paystackStatus: string;
+    try {
+        const result = await paystack.verifyTransaction(sale.paystack_reference);
+        paystackStatus = result.data?.status ?? 'unknown';
+    } catch (paystackErr: any) {
+        const detail = paystackErr?.response?.data?.message ?? paystackErr?.message ?? 'unknown';
+        logger.error('[paystack] verify failed for ref %s: %s', sale.paystack_reference, detail);
+        return {
+            sale,
+            confirmed:      false,
+            paystackStatus: 'failed',
+            message:        'Payment failed.',
+        };
+    }
+
+    if (paystackStatus === 'success') {
+        await Sale.query().patchAndFetchById(saleId, { payment_status: Sale.PAYMENT_STATUS_PAID });
+        return {
+            sale:           (await getSale(saleId))!,
+            confirmed:      true,
+            paystackStatus: 'success',
+            message:        'Payment confirmed. Sale is now marked as paid.',
+        };
+    }
+
+    return {
+        sale,
+        confirmed:      false,
+        paystackStatus,
+        message:        'Payment failed.',
+    };
 }
 
 export async function getSale(id: string): Promise<Sale> {
@@ -309,7 +580,38 @@ export async function voidSale(id: string, staffId: string): Promise<Sale> {
         await trx('sales').where({ id }).update({ voided_at: new Date(), voided_by_id: staffId });
     });
 
-    return getSale(id);
+    const voidedSale = await getSale(id);
+
+    const alertEnabled = get(SETTINGS.VOID_ALERT_ENABLED)?.value === 'true';
+    const ownerEmail   = process.env.OWNER_EMAIL;
+    if (alertEnabled && ownerEmail) {
+        const businessName    = get(SETTINGS.BUSINESS_NAME)?.value ?? 'Elegance by Sconia';
+        const extraRecipients = parseRecipients(get(SETTINGS.VOID_ALERT_RECIPIENTS)?.value ?? '');
+        const saleDate        = new Date(sale.created_at).toLocaleString('en-GH', {
+            timeZone: 'Africa/Accra', day: 'numeric', month: 'short', year: 'numeric',
+            hour: '2-digit', minute: '2-digit',
+        });
+        const html = `
+            <h2 style="color:#c0392b;">Sale Voided — ${businessName}</h2>
+            <p>A sale has been voided. Details below:</p>
+            <table style="border-collapse:collapse;font-family:sans-serif;font-size:14px;">
+              <tr><td style="padding:4px 12px 4px 0;color:#666;">Sale #</td><td style="padding:4px 0;font-weight:600;">${sale.sale_number}</td></tr>
+              <tr><td style="padding:4px 12px 4px 0;color:#666;">Amount</td><td style="padding:4px 0;">GHS ${Number(sale.amount_due).toFixed(2)}</td></tr>
+              <tr><td style="padding:4px 12px 4px 0;color:#666;">Method</td><td style="padding:4px 0;">${sale.payment_method}</td></tr>
+              <tr><td style="padding:4px 12px 4px 0;color:#666;">Original date</td><td style="padding:4px 0;">${saleDate}</td></tr>
+              <tr><td style="padding:4px 12px 4px 0;color:#666;">Voided by</td><td style="padding:4px 0;">${voidedSale.staff?.name ?? '—'}</td></tr>
+            </table>
+            <p style="margin-top:16px;color:#666;">Stock has been reinstated for all items on this sale.</p>
+        `;
+        sendMail({
+            to:      ownerEmail,
+            cc:      extraRecipients || undefined,
+            subject: `Sale Voided — ${sale.sale_number}`,
+            html,
+        }).catch((err) => logger.error('[void-alert] Failed to send void alert: %s', err.message));
+    }
+
+    return voidedSale;
 }
 
 export interface SaleReturnResult {

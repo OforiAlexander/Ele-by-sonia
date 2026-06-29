@@ -27,6 +27,7 @@ export interface CurrentUser {
   can_void_sales?: boolean;
   can_return_sales?: boolean;
   can_override_price?: boolean;
+  can_verify_payment?: boolean;
   can_view_staff?: boolean;
   can_create_staff?: boolean;
   can_update_staff?: boolean;
@@ -180,10 +181,24 @@ export interface Sale {
   change_given: string | null;
   discount: string;
   levy_amount?: string;
+  vat_amount?: string;
+  nhil_amount?: string;
+  getfund_amount?: string;
+  covid_levy_amount?: string;
   voided_at?: string | null;
   created_at: string;
+  customer_phone?: string | null;
+  paystack_reference?: string | null;
+  momo_provider?: string | null;
   items?: SaleLineItem[];
   staff?: { id: string; name: string };
+}
+
+export interface TransactionStats {
+  totalCount:   number;
+  cashTotal:    number;
+  momoTotal:    number;
+  pendingTotal: number;
 }
 
 // POS cart item — frontend-only, never sent to the backend verbatim
@@ -206,14 +221,24 @@ export interface HeldCart {
   savedAt: number;
 }
 
-export interface Setting {
+export interface AppSetting {
   id: string;
   name: string;
   label: string;
   value: string;
   group: string;
   editable: boolean;
+  type: 'string' | 'textarea' | 'boolean' | 'number' | 'time' | 'enum';
+  unit: string | null;
+  hint: string | null;
+  options: string[] | null;
+  min: number | null;
+  max: number | null;
+  restart_required: boolean;
 }
+
+// Key-value map returned by GET /api/settings/public
+export type PublicSettings = Record<string, string>;
 
 export interface StockHealthData {
   healthy:        number;

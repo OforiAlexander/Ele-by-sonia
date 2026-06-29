@@ -3,9 +3,18 @@ import { body } from 'express-validator';
 import { isLoggedIn } from '../../../middleware/isLoggedIn';
 import { hasPermission } from '../../../middleware/hasPermission';
 import { checkForValidationErrors } from '../../../middleware/validate';
-import { listSettingsController, updateSettingController } from './settings.controller';
+import {
+    listPublicSettingsController,
+    listSettingsController,
+    updateSettingController,
+} from './settings.controller';
 
 const router = Router();
+
+router.get('/public',
+    isLoggedIn,
+    listPublicSettingsController,
+);
 
 router.get('/',
     isLoggedIn,

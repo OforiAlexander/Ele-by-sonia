@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { paystack } from '../../services/payment/paystack';
 import { markSalePaid, markSaleFailed } from '../api/sales/sales.service';
+import { get } from '../../startup/settingsCache';
+import { SETTINGS } from '../../constants/settings';
 import logger from '../../services/logger';
 
 const router = Router();
@@ -25,6 +27,12 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
 
     const { reference } = event.data ?? {};
     if (!reference) return;
+
+    const autoVerify = get(SETTINGS.MOMO_AUTO_VERIFY_ON_WEBHOOK)?.value !== 'false';
+    if (!autoVerify) {
+        logger.info('[webhook] auto-verify disabled — skipping event %s for ref %s', event.event, reference);
+        return;
+    }
 
     try {
         if (event.event === 'charge.success') {
