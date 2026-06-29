@@ -23,7 +23,7 @@ const config: { [key: string]: Knex.Config } = {
             connectionString: process.env.DATABASE_URL,
             ssl: { rejectUnauthorized: false }
         },
-        migrations: { tableName: 'knex_migrations', directory: './src/server/migrations', extension: 'ts' },
+        migrations: { tableName: 'knex_migrations', directory: './dist/server/migrations', extension: 'js' },
         pool: { min: 2, max: 10 }
     }
 };
