@@ -252,6 +252,129 @@ export interface DashSummary {
   categories:     { name: string; revenue: number }[];
 }
 
+export interface ReportSummary {
+  period:        string;
+  from:          string;
+  to:            string;
+  revenue:       number;
+  cost:          number;
+  profit:        number;
+  marginPercent: number;
+  salesCount:    number;
+  unitsSold:     number;
+}
+
+export interface ProfitBreakdownItem {
+  group:   string;
+  revenue: number;
+  cost:    number;
+  profit:  number;
+  margin:  number;
+}
+
+export interface TopProduct {
+  variantId:   string;
+  productName: string;
+  sku:         string | null;
+  options:     string | null;
+  unitsSold:   number;
+  revenue:     number;
+}
+
+export interface ReportChartData {
+  labels: string[];
+  values: number[];
+}
+
+export interface TaxBreakdown {
+  period:    string;
+  from:      string;
+  to:        string;
+  vat:       number;
+  nhil:      number;
+  getfund:   number;
+  covidLevy: number;
+  levy:      number;
+  totalTax:  number;
+}
+
+export interface StockMovementEntry {
+  id:          string;
+  productName: string;
+  sku:         string | null;
+  quantity:    number;
+  note:        string | null;
+  staffName:   string;
+  createdAt:   string;
+}
+
+export interface StockMovementsReport {
+  period:       string;
+  from:         string;
+  to:           string;
+  totalAdded:   number;
+  totalRemoved: number;
+  entryCount:   number;
+  entries:      StockMovementEntry[];
+}
+
+export interface ReturnsByStaff {
+  staffId:   string;
+  staffName: string;
+  count:     number;
+  total:     number;
+}
+
+export interface ReturnsReport {
+  period:      string;
+  from:        string;
+  to:          string;
+  returnCount: number;
+  returnTotal: number;
+  byStaff:     ReturnsByStaff[];
+}
+
+export interface ActivityLogEntry {
+  id:         string;
+  action:     string;
+  entityType: string;
+  entityId:   string;
+  before:     Record<string, unknown> | null;
+  after:      Record<string, unknown> | null;
+  createdAt:  string;
+  userId:     string;
+  userName:   string;
+}
+
+export interface ActivityLog {
+  logs:  ActivityLogEntry[];
+  total: number;
+  page:  number;
+  limit: number;
+}
+
+export interface Reconciliation {
+  period:            string;
+  from:              string;
+  to:                string;
+  cashCount:         number;
+  cashTotal:         number;
+  momoCount:         number;
+  momoTotal:         number;
+  totalRevenue:      number;
+  totalTransactions: number;
+  unitsSold:         number;
+  cogsTotal:         number;
+  grossProfit:       number;
+  discountTotal:     number;
+  returnCount:       number;
+  returnTotal:       number;
+  voidCount:         number;
+  voidTotal:         number;
+  levyTotal:         number;
+  netCashExpected:   number;
+}
+
 export interface StaffMember {
   id:                   string;
   name:                 string;

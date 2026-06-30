@@ -150,6 +150,10 @@ export async function getProfitBreakdown(period: Period, date?: string, groupBy 
         } else {
             query = query.select(knex.raw('p.name as grp')).groupBy('p.id', 'p.name');
         }
+    } else if (groupBy === 'staff') {
+        query = query
+            .join('users as u', 'u.id', 's.staff_id')
+            .select(knex.raw('u.name as grp')).groupBy('u.id', 'u.name');
     } else {
         query = query.select(knex.raw('s.payment_method as grp')).groupBy('s.payment_method');
     }
@@ -266,5 +270,266 @@ export async function getStockHealth() {
         lowStock:       row.low_stock,
         outOfStock:     row.out_of_stock,
         inventoryValue: Number(row.inventory_value),
+    };
+}
+
+export async function getTaxBreakdown(period: Period, date?: string) {
+    const { from, to } = resolvePeriod(period, date);
+
+    const [row] = await knex('sales')
+        .whereNull('voided_at')
+        .where('created_at', '>=', from)
+        .where('created_at', '<=', to)
+        .select(
+            knex.raw('COALESCE(SUM(vat_amount), 0) as vat'),
+            knex.raw('COALESCE(SUM(nhil_amount), 0) as nhil'),
+            knex.raw('COALESCE(SUM(getfund_amount), 0) as getfund'),
+            knex.raw('COALESCE(SUM(covid_levy_amount), 0) as covid_levy'),
+            knex.raw('COALESCE(SUM(levy_amount), 0) as levy'),
+        );
+
+    const vat        = Number(row.vat);
+    const nhil       = Number(row.nhil);
+    const getfund    = Number(row.getfund);
+    const covidLevy  = Number(row.covid_levy);
+    const levy       = Number(row.levy);
+
+    return {
+        period,
+        from:     from.toISOString().slice(0, 10),
+        to:       to.toISOString().slice(0, 10),
+        vat,
+        nhil,
+        getfund,
+        covidLevy,
+        levy,
+        totalTax: vat + nhil + getfund + covidLevy + levy,
+    };
+}
+
+export async function getStockMovements(period: Period, date?: string, limitN = 50) {
+    const { from, to } = resolvePeriod(period, date);
+
+    const [totals] = await knex('stock_entries')
+        .where('created_at', '>=', from)
+        .where('created_at', '<=', to)
+        .select(
+            knex.raw("COALESCE(SUM(CASE WHEN quantity > 0 THEN quantity ELSE 0 END), 0)::int as total_added"),
+            knex.raw("COALESCE(SUM(CASE WHEN quantity < 0 THEN -quantity ELSE 0 END), 0)::int as total_removed"),
+            knex.raw('COUNT(*)::int as entry_count'),
+        );
+
+    const entries = await knex('stock_entries as se')
+        .join('product_variants as pv', 'pv.id', 'se.variant_id')
+        .join('products as p', 'p.id', 'pv.product_id')
+        .join('users as u', 'u.id', 'se.created_by')
+        .where('se.created_at', '>=', from)
+        .where('se.created_at', '<=', to)
+        .select(
+            'se.id', 'se.quantity', 'se.note', 'se.created_at',
+            'p.name as product_name', 'pv.sku',
+            'u.name as staff_name',
+        )
+        .orderBy('se.created_at', 'desc')
+        .limit(limitN);
+
+    return {
+        period,
+        from:         from.toISOString().slice(0, 10),
+        to:           to.toISOString().slice(0, 10),
+        totalAdded:   totals.total_added,
+        totalRemoved: totals.total_removed,
+        entryCount:   totals.entry_count,
+        entries: entries.map((row: any) => ({
+            id:          row.id,
+            productName: row.product_name,
+            sku:         row.sku ?? null,
+            quantity:    row.quantity,
+            note:        row.note ?? null,
+            staffName:   row.staff_name,
+            createdAt:   row.created_at,
+        })),
+    };
+}
+
+export async function getReturnsReport(period: Period, date?: string) {
+    const { from, to } = resolvePeriod(period, date);
+
+    const rows = await knex('sale_returns as sr')
+        .join('sale_return_items as sri', 'sri.return_id', 'sr.id')
+        .join('sale_items as si', 'si.id', 'sri.sale_item_id')
+        .join('users as u', 'u.id', 'sr.processed_by_id')
+        .where('sr.created_at', '>=', from)
+        .where('sr.created_at', '<=', to)
+        .select(
+            'sr.id as return_id', 'sr.processed_by_id', 'u.name as staff_name',
+            knex.raw('(sri.quantity * si.unit_price) as line_value'),
+        );
+
+    const byStaffMap = new Map<string, { staffId: string; staffName: string; count: number; total: number }>();
+    const seenReturnIds = new Set<string>();
+    const returnIds = new Set<string>();
+    let returnTotal = 0;
+
+    for (const row of rows) {
+        returnIds.add(row.return_id);
+        const value = Number(row.line_value);
+        returnTotal += value;
+
+        const existing = byStaffMap.get(row.processed_by_id);
+        const isNewReturn = !seenReturnIds.has(row.return_id);
+        seenReturnIds.add(row.return_id);
+
+        if (existing) {
+            existing.total += value;
+            if (isNewReturn) existing.count += 1;
+        } else {
+            byStaffMap.set(row.processed_by_id, {
+                staffId:   row.processed_by_id,
+                staffName: row.staff_name,
+                count:     isNewReturn ? 1 : 0,
+                total:     value,
+            });
+        }
+    }
+
+    return {
+        period,
+        from:        from.toISOString().slice(0, 10),
+        to:          to.toISOString().slice(0, 10),
+        returnCount: returnIds.size,
+        returnTotal: Number(returnTotal.toFixed(2)),
+        byStaff:     Array.from(byStaffMap.values()).map((s) => ({ ...s, total: Number(s.total.toFixed(2)) })),
+    };
+}
+
+export async function getActivityLog(filters: {
+    page:        number;
+    limit:       number;
+    from?:       string;
+    to?:         string;
+    userId?:     string;
+    action?:     string;
+    entityType?: string;
+}) {
+    const { page, limit, from, to, userId, action, entityType } = filters;
+    const offset = (page - 1) * limit;
+
+    let base = knex('audit_logs');
+    if (from)       base = base.where('audit_logs.created_at', '>=', from);
+    if (to)         base = base.where('audit_logs.created_at', '<=', to + ' 23:59:59');
+    if (userId)     base = base.where('audit_logs.user_id', userId);
+    if (action)     base = base.where('audit_logs.action', action);
+    if (entityType) base = base.where('audit_logs.entity_type', entityType);
+
+    const [logs, countResult] = await Promise.all([
+        base.clone()
+            .join('users as u', 'u.id', 'audit_logs.user_id')
+            .select('audit_logs.id', 'audit_logs.action', 'audit_logs.entity_type', 'audit_logs.entity_id',
+                'audit_logs.before', 'audit_logs.after', 'audit_logs.created_at',
+                'u.id as user_id', 'u.name as user_name')
+            .orderBy('audit_logs.created_at', 'desc')
+            .offset(offset)
+            .limit(limit),
+        base.clone().count('audit_logs.id as count').first(),
+    ]);
+
+    return {
+        logs: logs.map((row: any) => ({
+            id:         row.id,
+            action:     row.action,
+            entityType: row.entity_type,
+            entityId:   row.entity_id,
+            before:     row.before,
+            after:      row.after,
+            createdAt:  row.created_at,
+            userId:     row.user_id,
+            userName:   row.user_name,
+        })),
+        total: Number((countResult as any)?.count ?? 0),
+        page,
+        limit,
+    };
+}
+
+export async function getSalesReconciliation(from: Date, to: Date) {
+    const sales = await knex('sales')
+        .whereBetween('created_at', [from.toISOString(), to.toISOString()])
+        .whereNull('voided_at')
+        .where('payment_status', 'paid')
+        .select('id', 'payment_method', 'amount_due', 'discount', 'levy_amount');
+
+    const cashSales = sales.filter((s: any) => s.payment_method === 'cash');
+    const momoSales = sales.filter((s: any) => s.payment_method === 'momo');
+
+    const cashTotal     = cashSales.reduce((sum: number, s: any) => sum + Number(s.amount_due), 0);
+    const momoTotal     = momoSales.reduce((sum: number, s: any) => sum + Number(s.amount_due), 0);
+    const discountTotal = sales.reduce((sum: number, s: any) => sum + Number(s.discount ?? 0), 0);
+    const levyTotal     = sales.reduce((sum: number, s: any) => sum + Number(s.levy_amount ?? 0), 0);
+
+    const saleIds = sales.map((s: any) => s.id);
+    let cogsTotal  = 0;
+    let unitsSold  = 0;
+    if (saleIds.length > 0) {
+        const itemRows = await knex('sale_items')
+            .whereIn('sale_id', saleIds)
+            .select(knex.raw('SUM(cost_price_snapshot * quantity) AS cogs'), knex.raw('SUM(quantity) AS units'));
+        cogsTotal = parseFloat(Number(itemRows[0]?.cogs ?? 0).toFixed(2));
+        unitsSold = parseInt(String(itemRows[0]?.units ?? 0), 10);
+    }
+
+    const returnRows = await knex('sale_returns as sr')
+        .join('sale_items as si', function () {
+            this.on('si.sale_id', '=', 'sr.sale_id');
+        })
+        .join('sale_return_items as sri', 'sri.sale_item_id', '=', 'si.id')
+        .whereBetween('sr.created_at', [from.toISOString(), to.toISOString()])
+        .select(knex.raw('sri.quantity * si.unit_price AS line_value'));
+
+    const returnTotal = returnRows.reduce((sum: number, r: any) => sum + Number(r.line_value ?? 0), 0);
+    const returnCount = returnRows.length;
+
+    const voidRows = await knex('sales')
+        .whereBetween('voided_at', [from.toISOString(), to.toISOString()])
+        .whereNotNull('voided_at')
+        .select('amount_due');
+
+    const voidTotal = voidRows.reduce((sum: number, v: any) => sum + Number(v.amount_due), 0);
+    const voidCount = voidRows.length;
+
+    const totalRevenue      = cashTotal + momoTotal;
+    const totalTransactions = sales.length;
+    const grossProfit       = parseFloat((totalRevenue - cogsTotal).toFixed(2));
+    const netCashExpected   = parseFloat((cashTotal - returnTotal).toFixed(2));
+
+    return {
+        cashCount:         cashSales.length,
+        cashTotal:         parseFloat(cashTotal.toFixed(2)),
+        momoCount:         momoSales.length,
+        momoTotal:         parseFloat(momoTotal.toFixed(2)),
+        totalRevenue:      parseFloat(totalRevenue.toFixed(2)),
+        totalTransactions,
+        unitsSold,
+        cogsTotal,
+        grossProfit:       Math.max(0, grossProfit),
+        discountTotal:     parseFloat(discountTotal.toFixed(2)),
+        returnCount,
+        returnTotal:       parseFloat(returnTotal.toFixed(2)),
+        voidCount,
+        voidTotal:         parseFloat(voidTotal.toFixed(2)),
+        levyTotal:         parseFloat(levyTotal.toFixed(2)),
+        netCashExpected:   Math.max(0, netCashExpected),
+    };
+}
+
+export async function getReconciliation(period: Period, date?: string) {
+    const { from, to } = resolvePeriod(period, date);
+    const stats = await getSalesReconciliation(from, to);
+
+    return {
+        period,
+        from: from.toISOString().slice(0, 10),
+        to:   to.toISOString().slice(0, 10),
+        ...stats,
     };
 }

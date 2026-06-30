@@ -18,6 +18,8 @@ let ownerId: string;
 let productId: string;
 let variantAId: string;
 let variantBId: string;
+let sale4Id: string;
+let saleItem4Id: string;
 
 async function login(email: string) {
     const s = request.agent(app);
@@ -92,12 +94,51 @@ beforeAll(async () => {
         sale_id: s3.id, variant_id: variantAId,
         quantity: 1, unit_price: 100, line_total: 100, cost_price_snapshot: 60,
     });
+
+    // Sale 4 — separate year window, isolated from the annual-period assertions above
+    const [s4] = await knex('sales').insert({
+        sale_number: 'RP-20210310-0001', staff_id: ownerId,
+        payment_method: 'cash', payment_status: 'paid',
+        amount_due: 200, amount_tendered: 200, change_given: 0, discount: 10,
+        levy_amount: 8, vat_amount: 20, nhil_amount: 5, getfund_amount: 5, covid_levy_amount: 3,
+        created_at: new Date('2021-03-10T09:00:00Z'),
+    }).returning('id');
+    sale4Id = s4.id;
+    const [si4] = await knex('sale_items').insert({
+        sale_id: sale4Id, variant_id: variantAId,
+        quantity: 2, unit_price: 100, line_total: 200, cost_price_snapshot: 60,
+    }).returning('id');
+    saleItem4Id = si4.id;
+
+    const [sr1] = await knex('sale_returns').insert({
+        sale_id: sale4Id, processed_by_id: ownerId, refund_method: 'cash',
+        created_at: new Date('2021-03-10T15:00:00Z'),
+    }).returning('id');
+    await knex('sale_return_items').insert({
+        return_id: sr1.id, sale_item_id: saleItem4Id, quantity: 1,
+        created_at: new Date('2021-03-10T15:00:00Z'),
+    });
+
+    await knex('stock_entries').insert([
+        { variant_id: variantAId, quantity: 50, note: 'RP restock', created_by: ownerId, created_at: new Date('2021-03-10T08:00:00Z') },
+        { variant_id: variantAId, quantity: -5, note: 'RP damaged', created_by: ownerId, created_at: new Date('2021-03-10T08:30:00Z') },
+    ]);
+
+    await knex('audit_logs').insert([
+        { user_id: ownerId, action: 'STOCK_ADDED', entity_type: 'variant', entity_id: variantAId, after: { quantity: 50 }, created_at: new Date('2021-03-10T08:00:00Z') },
+        { user_id: ownerId, action: 'SALE_VOIDED', entity_type: 'sale', entity_id: sale4Id, before: { voided_at: null }, created_at: new Date('2021-03-10T16:00:00Z') },
+    ]);
 });
 
 afterAll(async () => {
-    await knex('sale_items').whereIn('sale_id', knex('sales').where('sale_number', 'like', 'RP-%').select('id')).delete();
+    const rpSaleIds = knex('sales').where('sale_number', 'like', 'RP-%').select('id');
+    const rpReturnIds = knex('sale_returns').whereIn('sale_id', rpSaleIds).select('id');
+    await knex('sale_return_items').whereIn('return_id', rpReturnIds).delete();
+    await knex('sale_returns').whereIn('sale_id', rpSaleIds).delete();
+    await knex('sale_items').whereIn('sale_id', rpSaleIds).delete();
     await knex('sales').where('sale_number', 'like', 'RP-%').delete();
     if (productId) {
+        await knex('stock_entries').where({ variant_id: variantAId }).orWhere({ variant_id: variantBId }).delete();
         await knex('product_variants').where({ product_id: productId }).delete();
         await knex('products').where({ id: productId }).delete();
     }
@@ -396,5 +437,211 @@ describe('GET /api/reports/chart', () => {
         const res = await owner.get('/api/reports/chart?period=monthly&date=2019-06-01');
         expect(res.status).toBe(200);
         expect(res.body.data.values.every((v: number) => v === 0)).toBe(true);
+    });
+});
+
+describe('GET /api/reports/profit?groupBy=staff', () => {
+    it('groups revenue and cost by staff member', async () => {
+        const s = await login(OWNER_EMAIL);
+        const res = await s.get('/api/reports/profit?period=monthly&date=2020-01-15&groupBy=staff');
+        expect(res.status).toBe(200);
+        const row = res.body.data.find((r: any) => r.group === 'Test User');
+        expect(row).toBeDefined();
+        expect(Number(row.revenue)).toBe(440);
+        expect(Number(row.cost)).toBe(270);
+        expect(Number(row.profit)).toBe(170);
+    });
+});
+
+describe('GET /api/reports/tax', () => {
+    it('returns 401 when not logged in', async () => {
+        const res = await request(app).get('/api/reports/tax?period=monthly&date=2021-03-10');
+        expect(res.status).toBe(401);
+    });
+
+    it('returns 403 when user lacks can_view_reports', async () => {
+        const s = await login(PLAIN_EMAIL);
+        expect((await s.get('/api/reports/tax?period=monthly&date=2021-03-10')).status).toBe(403);
+    });
+
+    it('sums each levy/tax column for the period', async () => {
+        const s = await login(OWNER_EMAIL);
+        const res = await s.get('/api/reports/tax?period=monthly&date=2021-03-10');
+        expect(res.status).toBe(200);
+        const d = res.body.data;
+        expect(d.from).toBe('2021-03-01');
+        expect(d.to).toBe('2021-03-31');
+        expect(Number(d.vat)).toBe(20);
+        expect(Number(d.nhil)).toBe(5);
+        expect(Number(d.getfund)).toBe(5);
+        expect(Number(d.covidLevy)).toBe(3);
+        expect(Number(d.levy)).toBe(8);
+        expect(Number(d.totalTax)).toBe(41);
+    });
+
+    it('returns zeros for a period with no sales', async () => {
+        const s = await login(OWNER_EMAIL);
+        const res = await s.get('/api/reports/tax?period=monthly&date=2019-06-01');
+        expect(res.status).toBe(200);
+        expect(Number(res.body.data.totalTax)).toBe(0);
+    });
+});
+
+describe('GET /api/reports/stock-movements', () => {
+    it('returns 401 when not logged in', async () => {
+        const res = await request(app).get('/api/reports/stock-movements?period=monthly&date=2021-03-10');
+        expect(res.status).toBe(401);
+    });
+
+    it('returns 403 when user lacks can_view_reports', async () => {
+        const s = await login(PLAIN_EMAIL);
+        expect((await s.get('/api/reports/stock-movements?period=monthly&date=2021-03-10')).status).toBe(403);
+    });
+
+    it('totals added/removed quantity and lists entries with product and staff names', async () => {
+        const s = await login(OWNER_EMAIL);
+        const res = await s.get('/api/reports/stock-movements?period=monthly&date=2021-03-10');
+        expect(res.status).toBe(200);
+        const d = res.body.data;
+        expect(d.totalAdded).toBe(50);
+        expect(d.totalRemoved).toBe(5);
+        expect(d.entryCount).toBe(2);
+        expect(d.entries).toHaveLength(2);
+        expect(d.entries[0].productName).toBe('RP Test Product');
+        expect(d.entries[0].staffName).toBe('Test User');
+    });
+
+    it('returns empty entries for a period with no movements', async () => {
+        const s = await login(OWNER_EMAIL);
+        const res = await s.get('/api/reports/stock-movements?period=monthly&date=2019-06-01');
+        expect(res.status).toBe(200);
+        expect(res.body.data.entries).toHaveLength(0);
+        expect(res.body.data.totalAdded).toBe(0);
+    });
+});
+
+describe('GET /api/reports/returns', () => {
+    it('returns 401 when not logged in', async () => {
+        const res = await request(app).get('/api/reports/returns?period=monthly&date=2021-03-10');
+        expect(res.status).toBe(401);
+    });
+
+    it('returns 403 when user lacks can_view_reports', async () => {
+        const s = await login(PLAIN_EMAIL);
+        expect((await s.get('/api/reports/returns?period=monthly&date=2021-03-10')).status).toBe(403);
+    });
+
+    it('counts and totals returned value, broken down by staff', async () => {
+        const s = await login(OWNER_EMAIL);
+        const res = await s.get('/api/reports/returns?period=monthly&date=2021-03-10');
+        expect(res.status).toBe(200);
+        const d = res.body.data;
+        expect(d.returnCount).toBe(1);
+        expect(Number(d.returnTotal)).toBe(100);
+        expect(d.byStaff).toHaveLength(1);
+        expect(d.byStaff[0].staffName).toBe('Test User');
+        expect(d.byStaff[0].count).toBe(1);
+        expect(Number(d.byStaff[0].total)).toBe(100);
+    });
+
+    it('returns zeros for a period with no returns', async () => {
+        const s = await login(OWNER_EMAIL);
+        const res = await s.get('/api/reports/returns?period=monthly&date=2019-06-01');
+        expect(res.status).toBe(200);
+        expect(res.body.data.returnCount).toBe(0);
+        expect(res.body.data.byStaff).toHaveLength(0);
+    });
+});
+
+describe('GET /api/reports/activity', () => {
+    it('returns 401 when not logged in', async () => {
+        const res = await request(app).get('/api/reports/activity');
+        expect(res.status).toBe(401);
+    });
+
+    it('returns 403 when user lacks can_view_reports', async () => {
+        const s = await login(PLAIN_EMAIL);
+        expect((await s.get('/api/reports/activity')).status).toBe(403);
+    });
+
+    it('filters by exact date range to the two seeded entries', async () => {
+        const s = await login(OWNER_EMAIL);
+        const res = await s.get('/api/reports/activity?from=2021-03-10&to=2021-03-10&limit=50');
+        expect(res.status).toBe(200);
+        expect(res.body.data.logs).toHaveLength(2);
+        expect(res.body.data.logs[0].action).toBe('SALE_VOIDED');
+        expect(res.body.data.logs[1].action).toBe('STOCK_ADDED');
+    });
+
+    it('filters by action', async () => {
+        const s = await login(OWNER_EMAIL);
+        const res = await s.get('/api/reports/activity?action=STOCK_ADDED&from=2021-03-10&to=2021-03-10');
+        expect(res.status).toBe(200);
+        expect(res.body.data.logs).toHaveLength(1);
+        expect(res.body.data.logs[0].entityType).toBe('variant');
+        expect(res.body.data.logs[0].entityId).toBe(variantAId);
+    });
+
+    it('filters by entityType', async () => {
+        const s = await login(OWNER_EMAIL);
+        const res = await s.get('/api/reports/activity?entityType=sale&from=2021-03-10&to=2021-03-10');
+        expect(res.status).toBe(200);
+        expect(res.body.data.logs).toHaveLength(1);
+        expect(res.body.data.logs[0].action).toBe('SALE_VOIDED');
+    });
+
+    it('respects page/limit pagination', async () => {
+        const s = await login(OWNER_EMAIL);
+        const res = await s.get('/api/reports/activity?from=2021-03-10&to=2021-03-10&limit=1&page=1');
+        expect(res.status).toBe(200);
+        expect(res.body.data.logs).toHaveLength(1);
+        expect(res.body.data.limit).toBe(1);
+        expect(res.body.data.total).toBe(2);
+    });
+});
+
+describe('GET /api/reports/reconciliation', () => {
+    it('returns 401 when not logged in', async () => {
+        const res = await request(app).get('/api/reports/reconciliation?period=monthly&date=2021-03-10');
+        expect(res.status).toBe(401);
+    });
+
+    it('returns 403 when user lacks can_view_reports', async () => {
+        const s = await login(PLAIN_EMAIL);
+        expect((await s.get('/api/reports/reconciliation?period=monthly&date=2021-03-10')).status).toBe(403);
+    });
+
+    it('computes cash/momo split, COGS, discounts, levy, returns, and net cash expected', async () => {
+        const s = await login(OWNER_EMAIL);
+        const res = await s.get('/api/reports/reconciliation?period=monthly&date=2021-03-10');
+        expect(res.status).toBe(200);
+        const d = res.body.data;
+        expect(d.cashCount).toBe(1);
+        expect(Number(d.cashTotal)).toBe(200);
+        expect(d.momoCount).toBe(0);
+        expect(Number(d.momoTotal)).toBe(0);
+        expect(Number(d.totalRevenue)).toBe(200);
+        expect(d.totalTransactions).toBe(1);
+        expect(d.unitsSold).toBe(2);
+        expect(Number(d.cogsTotal)).toBe(120);
+        expect(Number(d.grossProfit)).toBe(80);
+        expect(Number(d.discountTotal)).toBe(10);
+        expect(d.returnCount).toBe(1);
+        expect(Number(d.returnTotal)).toBe(100);
+        expect(d.voidCount).toBe(0);
+        expect(Number(d.voidTotal)).toBe(0);
+        expect(Number(d.levyTotal)).toBe(8);
+        expect(Number(d.netCashExpected)).toBe(100);
+    });
+
+    it('counts a voided sale in voidCount/voidTotal but excludes it from revenue', async () => {
+        const s = await login(OWNER_EMAIL);
+        const res = await s.get('/api/reports/reconciliation?period=monthly&date=2020-01-15');
+        expect(res.status).toBe(200);
+        const d = res.body.data;
+        expect(d.voidCount).toBe(1);
+        expect(Number(d.voidTotal)).toBe(100);
+        expect(Number(d.totalRevenue)).toBe(440);
+        expect(d.totalTransactions).toBe(2);
     });
 });

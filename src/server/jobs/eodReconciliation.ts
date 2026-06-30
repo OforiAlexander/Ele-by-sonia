@@ -4,77 +4,8 @@ import { SETTINGS } from '../constants/settings';
 import { sendMail } from '../services/mail/send-mail';
 import { buildEodReportHtml, buildWeeklyReportHtml } from '../services/mail/templates/eod-report';
 import type { EodReportData, WeeklyReportData, SlowMovingItem, OverstockItem } from '../services/mail/templates/eod-report';
+import { getSalesReconciliation } from '../routes/api/reports/reports.service';
 import logger from '../services/logger';
-
-async function collectSalesData(from: Date, to: Date) {
-    const sales = await knex('sales')
-        .whereBetween('created_at', [from.toISOString(), to.toISOString()])
-        .whereNull('voided_at')
-        .where('payment_status', 'paid')
-        .select('id', 'payment_method', 'amount_due', 'discount', 'levy_amount');
-
-    const cashSales = sales.filter((s: any) => s.payment_method === 'cash');
-    const momoSales = sales.filter((s: any) => s.payment_method === 'momo');
-
-    const cashTotal     = cashSales.reduce((sum: number, s: any) => sum + Number(s.amount_due), 0);
-    const momoTotal     = momoSales.reduce((sum: number, s: any) => sum + Number(s.amount_due), 0);
-    const discountTotal = sales.reduce((sum: number, s: any) => sum + Number(s.discount ?? 0), 0);
-    const levyTotal     = sales.reduce((sum: number, s: any) => sum + Number(s.levy_amount ?? 0), 0);
-
-    const saleIds = sales.map((s: any) => s.id);
-    let cogsTotal  = 0;
-    let unitsSold  = 0;
-    if (saleIds.length > 0) {
-        const itemRows = await knex('sale_items')
-            .whereIn('sale_id', saleIds)
-            .select(knex.raw('SUM(cost_price_snapshot * quantity) AS cogs'), knex.raw('SUM(quantity) AS units'));
-        cogsTotal = parseFloat(Number(itemRows[0]?.cogs ?? 0).toFixed(2));
-        unitsSold = parseInt(String(itemRows[0]?.units ?? 0), 10);
-    }
-
-    const returnRows = await knex('sale_returns as sr')
-        .join('sale_items as si', function () {
-            this.on('si.sale_id', '=', 'sr.sale_id');
-        })
-        .join('sale_return_items as sri', 'sri.sale_item_id', '=', 'si.id')
-        .whereBetween('sr.created_at', [from.toISOString(), to.toISOString()])
-        .select(knex.raw('sri.quantity * si.unit_price AS line_value'));
-
-    const returnTotal = returnRows.reduce((sum: number, r: any) => sum + Number(r.line_value ?? 0), 0);
-    const returnCount = returnRows.length;
-
-    const voidRows = await knex('sales')
-        .whereBetween('voided_at', [from.toISOString(), to.toISOString()])
-        .whereNotNull('voided_at')
-        .select('amount_due');
-
-    const voidTotal = voidRows.reduce((sum: number, v: any) => sum + Number(v.amount_due), 0);
-    const voidCount = voidRows.length;
-
-    const totalRevenue      = cashTotal + momoTotal;
-    const totalTransactions = sales.length;
-    const grossProfit       = parseFloat((totalRevenue - cogsTotal).toFixed(2));
-    const netCashExpected   = parseFloat((cashTotal - returnTotal).toFixed(2));
-
-    return {
-        cashCount:         cashSales.length,
-        cashTotal:         parseFloat(cashTotal.toFixed(2)),
-        momoCount:         momoSales.length,
-        momoTotal:         parseFloat(momoTotal.toFixed(2)),
-        totalRevenue:      parseFloat(totalRevenue.toFixed(2)),
-        totalTransactions,
-        unitsSold,
-        cogsTotal,
-        grossProfit:       Math.max(0, grossProfit),
-        discountTotal:     parseFloat(discountTotal.toFixed(2)),
-        returnCount,
-        returnTotal:       parseFloat(returnTotal.toFixed(2)),
-        voidCount,
-        voidTotal:         parseFloat(voidTotal.toFixed(2)),
-        levyTotal:         parseFloat(levyTotal.toFixed(2)),
-        netCashExpected:   Math.max(0, netCashExpected),
-    };
-}
 
 async function collectSlowMoving(days: number): Promise<SlowMovingItem[]> {
     if (days <= 0) return [];
@@ -180,7 +111,7 @@ export async function runEodReconciliation(): Promise<void> {
     startOfDay.setHours(0, 0, 0, 0);
 
     const [stats, slowMoving, overstock] = await Promise.all([
-        collectSalesData(startOfDay, now),
+        getSalesReconciliation(startOfDay, now),
         collectSlowMoving(slowDays),
         collectOverstock(overstockMult),
     ]);
@@ -240,7 +171,7 @@ export async function runWeeklyReconciliation(): Promise<void> {
     periodStart.setHours(0, 0, 0, 0);
 
     const [stats, slowMoving, overstock] = await Promise.all([
-        collectSalesData(periodStart, now),
+        getSalesReconciliation(periodStart, now),
         collectSlowMoving(slowDays),
         collectOverstock(overstockMult),
     ]);

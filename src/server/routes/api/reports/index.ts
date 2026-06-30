@@ -9,6 +9,11 @@ import {
     topProductsController,
     chartController,
     stockHealthController,
+    taxController,
+    stockMovementsController,
+    returnsController,
+    activityController,
+    reconciliationController,
 } from './reports.controller';
 
 const router = Router();
@@ -37,7 +42,7 @@ router.get('/profit',
     hasPermission('can_view_reports'),
     periodParam,
     dateParam,
-    query('groupBy').optional().isIn(['category', 'product', 'payment_method']).withMessage('groupBy must be category, product, or payment_method.'),
+    query('groupBy').optional().isIn(['category', 'product', 'payment_method', 'staff']).withMessage('groupBy must be category, product, payment_method, or staff.'),
     checkForValidationErrors,
     profitController,
 );
@@ -66,6 +71,57 @@ router.get('/stock-health',
     isLoggedIn,
     hasPermission('can_view_reports'),
     stockHealthController,
+);
+
+router.get('/tax',
+    isLoggedIn,
+    hasPermission('can_view_reports'),
+    periodParam,
+    dateParam,
+    checkForValidationErrors,
+    taxController,
+);
+
+router.get('/stock-movements',
+    isLoggedIn,
+    hasPermission('can_view_reports'),
+    periodParam,
+    dateParam,
+    query('limit').optional().isInt({ min: 1, max: 200 }).toInt(),
+    checkForValidationErrors,
+    stockMovementsController,
+);
+
+router.get('/returns',
+    isLoggedIn,
+    hasPermission('can_view_reports'),
+    periodParam,
+    dateParam,
+    checkForValidationErrors,
+    returnsController,
+);
+
+router.get('/activity',
+    isLoggedIn,
+    hasPermission('can_view_reports'),
+    query('page').optional().isInt({ min: 1 }).toInt(),
+    query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
+    query('from').optional().isDate().withMessage('from must be YYYY-MM-DD.'),
+    query('to').optional().isDate().withMessage('to must be YYYY-MM-DD.'),
+    query('userId').optional().isUUID().withMessage('userId must be a valid UUID.'),
+    query('action').optional().isString(),
+    query('entityType').optional().isString(),
+    checkForValidationErrors,
+    activityController,
+);
+
+router.get('/reconciliation',
+    isLoggedIn,
+    hasPermission('can_view_reports'),
+    periodParam,
+    dateParam,
+    checkForValidationErrors,
+    reconciliationController,
 );
 
 export default router;

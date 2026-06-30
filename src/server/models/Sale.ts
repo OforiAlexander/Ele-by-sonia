@@ -18,6 +18,10 @@ export default class Sale extends Model {
   change_given?: number;
   discount!: number;
   levy_amount!: number;
+  vat_amount!: number;
+  nhil_amount!: number;
+  getfund_amount!: number;
+  covid_levy_amount!: number;
   note?: string;
   customer_phone?: string;
   momo_provider?: 'mtn' | 'vod' | 'atl';
