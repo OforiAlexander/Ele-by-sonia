@@ -3,15 +3,11 @@ $auth-accent:  #E3A92B;
 $auth-muted:   #8AAE9E;
 $auth-body:    #D4EBE0;
 
-// ── Shell layout ─────────────────────────────────────────────────────────────
-
 .auth-shell {
   display: flex;
   min-height: 100vh;
   background: #f4f7f5;
 }
-
-// ── Left brand panel (60%) ────────────────────────────────────────────────────
 
 .auth-brand {
   background: $auth-dark;
@@ -123,8 +119,6 @@ $auth-body:    #D4EBE0;
   font-size: 12.5px;
 }
 
-// ── Right form panel (40%) ────────────────────────────────────────────────────
-
 .auth-form-panel {
   flex: 1;
   display: flex;
@@ -138,8 +132,6 @@ $auth-body:    #D4EBE0;
   max-width: 400px;
 }
 
-// ── Card wrapper around the form ──────────────────────────────────────────────
-
 .auth-card {
   background: #fff;
   border: 1.5px solid rgba(10, 92, 63, 0.13);
@@ -150,8 +142,6 @@ $auth-body:    #D4EBE0;
   padding: 36px 32px 40px;
   width: 100%;
 }
-
-// ── Typography helpers ────────────────────────────────────────────────────────
 
 .auth-eyebrow {
   color: $auth-accent;
@@ -206,14 +196,10 @@ $auth-body:    #D4EBE0;
   }
 }
 
-// ── Mobile logo (shown only when left panel is hidden) ────────────────────────
-
 .auth-mobile-logo {
   display: none;
   margin-bottom: 24px;
 }
-
-// ── Mantine input overrides (affects all auth portal inputs) ──────────────────
 
 .mantine-TextInput-label,
 .mantine-PasswordInput-label,
@@ -279,8 +265,6 @@ $auth-body:    #D4EBE0;
     border-color: $auth-dark;
   }
 }
-
-// ── Responsive ────────────────────────────────────────────────────────────────
 
 @media (max-width: 960px) {
   .auth-brand {

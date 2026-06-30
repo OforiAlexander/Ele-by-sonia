@@ -3,7 +3,10 @@ import { createRoot } from 'react-dom/client';
 import { MantineProvider } from '@mantine/core';
 import { BrowserRouter } from 'react-router-dom';
 import '@mantine/core/styles.css';
-
+import '@fontsource/ibm-plex-sans/400.css';
+import '@fontsource/ibm-plex-sans/500.css';
+import '@fontsource/ibm-plex-sans/600.css';
+import '@fontsource/space-grotesk/700.css';
 
 const theme = {
   primaryColor: 'green',
@@ -14,7 +17,7 @@ const theme = {
       '#0f762b', '#006219',
     ] as [string, string, string, string, string, string, string, string, string, string],
   },
-  fontFamily: 'Inter, sans-serif',
+  fontFamily: 'IBM Plex Sans, sans-serif',
 };
 
 const container = document.getElementById('root')!;
@@ -25,7 +28,7 @@ root.render(
     <MantineProvider theme={theme}>
       <BrowserRouter>
         {/* Store portal routes will go here — Phase 2 */}
-        <div style={{ padding: '2rem', fontFamily: 'Inter, sans-serif' }}>
+        <div style={{ padding: '2rem', fontFamily: 'IBM Plex Sans, sans-serif' }}>
           <h1 style={{ color: '#50C878' }}>Elegance by Sconia</h1>
           <p>Phase 2 — Online store placeholder.</p>
         </div>

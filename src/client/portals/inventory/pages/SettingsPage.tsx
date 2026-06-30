@@ -85,7 +85,7 @@ const SettingsPage: React.FC = () => {
 
             <Paper withBorder radius="md" p={0} style={{ overflow: 'hidden' }}>
                 <Tabs value={activeTab} onChange={handleTabChange} color="green">
-                    <Tabs.List style={{ borderBottom: '1px solid #ECEFEC', padding: '0 16px' }}>
+                    <Tabs.List className="settings-tabs-list" style={{ borderBottom: '1px solid #ECEFEC', padding: '0 16px' }}>
                         {GROUPS.map((g) => (
                             <Tabs.Tab key={g.key} value={g.key}>
                                 {g.label}

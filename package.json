@@ -39,7 +39,6 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.490.0",
     "@fontsource/ibm-plex-sans": "^5.2.8",
-    "@fontsource/inter": "^5.2.8",
     "@fontsource/space-grotesk": "^5.2.10",
     "@mantine/core": "^7.5.0",
     "@mantine/dates": "^7.5.0",
