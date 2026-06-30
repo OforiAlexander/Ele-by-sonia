@@ -14,6 +14,12 @@ import {
     chartSchema,
     topProductSchema,
     profitBreakdownItemSchema,
+    taxBreakdownSchema,
+    stockMovementsSchema,
+    returnsReportSchema,
+    activityLogSchema,
+    activityLogEntrySchema,
+    reconciliationSchema,
 } from './schemas';
 import {
     createTestUser, cleanupUserCascade, loginAgent,
@@ -181,7 +187,7 @@ describe('GET /api/reports/profit', () => {
 
     it('each item validates against profitBreakdownItemSchema', async () => {
         const { agent } = await loginAgent(app, EMAIL);
-        const groupBys = ['category', 'product', 'payment_method'];
+        const groupBys = ['category', 'product', 'payment_method', 'staff'];
         for (const groupBy of groupBys) {
             const res = await agent.get(`/api/reports/profit?period=annual&groupBy=${groupBy}`);
             for (const item of res.body.data) {
@@ -235,6 +241,143 @@ describe('GET /api/reports/stock-health', () => {
 
     it('requires authentication', async () => {
         const res = await request(app).get('/api/reports/stock-health');
+        expect(res.status).toBe(401);
+    });
+});
+
+// ─── GET /api/reports/tax ─────────────────────────────────────────────────────
+
+describe('GET /api/reports/tax', () => {
+    it('validates against taxBreakdownSchema', async () => {
+        const { agent } = await loginAgent(app, EMAIL);
+        const res = await agent.get('/api/reports/tax?period=annual');
+
+        expect(res.status).toBe(200);
+        await expect(
+            taxBreakdownSchema.validate(res.body.data, { abortEarly: false }),
+        ).resolves.toBeDefined();
+    });
+
+    it('rejects missing period with 422', async () => {
+        const { agent } = await loginAgent(app, EMAIL);
+        const res = await agent.get('/api/reports/tax');
+        expect(res.status).toBe(422);
+    });
+
+    it('requires authentication', async () => {
+        const res = await request(app).get('/api/reports/tax?period=annual');
+        expect(res.status).toBe(401);
+    });
+});
+
+// ─── GET /api/reports/stock-movements ────────────────────────────────────────
+
+describe('GET /api/reports/stock-movements', () => {
+    it('validates against stockMovementsSchema', async () => {
+        const { agent } = await loginAgent(app, EMAIL);
+        const res = await agent.get('/api/reports/stock-movements?period=annual');
+
+        expect(res.status).toBe(200);
+        await expect(
+            stockMovementsSchema.validate(res.body.data, { abortEarly: false }),
+        ).resolves.toBeDefined();
+    });
+
+    it('respects the limit param', async () => {
+        const { agent } = await loginAgent(app, EMAIL);
+        const res = await agent.get('/api/reports/stock-movements?period=annual&limit=5');
+        expect(res.status).toBe(200);
+        expect(res.body.data.entries.length).toBeLessThanOrEqual(5);
+    });
+
+    it('rejects limit above 200', async () => {
+        const { agent } = await loginAgent(app, EMAIL);
+        const res = await agent.get('/api/reports/stock-movements?period=annual&limit=500');
+        expect(res.status).toBe(422);
+    });
+
+    it('requires authentication', async () => {
+        const res = await request(app).get('/api/reports/stock-movements?period=annual');
+        expect(res.status).toBe(401);
+    });
+});
+
+// ─── GET /api/reports/returns ─────────────────────────────────────────────────
+
+describe('GET /api/reports/returns', () => {
+    it('validates against returnsReportSchema', async () => {
+        const { agent } = await loginAgent(app, EMAIL);
+        const res = await agent.get('/api/reports/returns?period=annual');
+
+        expect(res.status).toBe(200);
+        await expect(
+            returnsReportSchema.validate(res.body.data, { abortEarly: false }),
+        ).resolves.toBeDefined();
+    });
+
+    it('requires authentication', async () => {
+        const res = await request(app).get('/api/reports/returns?period=annual');
+        expect(res.status).toBe(401);
+    });
+});
+
+// ─── GET /api/reports/activity ───────────────────────────────────────────────
+
+describe('GET /api/reports/activity', () => {
+    it('validates against activityLogSchema', async () => {
+        const { agent } = await loginAgent(app, EMAIL);
+        const res = await agent.get('/api/reports/activity');
+
+        expect(res.status).toBe(200);
+        await expect(
+            activityLogSchema.validate(res.body.data, { abortEarly: false }),
+        ).resolves.toBeDefined();
+    });
+
+    it('returns at least the login entry for the current user', async () => {
+        const { agent } = await loginAgent(app, EMAIL);
+        const res = await agent.get('/api/reports/activity?limit=50');
+
+        expect(res.status).toBe(200);
+        expect(res.body.data.logs.length).toBeGreaterThan(0);
+        await expect(
+            activityLogEntrySchema.validate(res.body.data.logs[0], { abortEarly: false }),
+        ).resolves.toBeDefined();
+    });
+
+    it('rejects an invalid userId with 422', async () => {
+        const { agent } = await loginAgent(app, EMAIL);
+        const res = await agent.get('/api/reports/activity?userId=not-a-uuid');
+        expect(res.status).toBe(422);
+    });
+
+    it('requires authentication', async () => {
+        const res = await request(app).get('/api/reports/activity');
+        expect(res.status).toBe(401);
+    });
+});
+
+// ─── GET /api/reports/reconciliation ─────────────────────────────────────────
+
+describe('GET /api/reports/reconciliation', () => {
+    it('validates against reconciliationSchema', async () => {
+        const { agent } = await loginAgent(app, EMAIL);
+        const res = await agent.get('/api/reports/reconciliation?period=annual');
+
+        expect(res.status).toBe(200);
+        await expect(
+            reconciliationSchema.validate(res.body.data, { abortEarly: false }),
+        ).resolves.toBeDefined();
+    });
+
+    it('rejects missing period with 422', async () => {
+        const { agent } = await loginAgent(app, EMAIL);
+        const res = await agent.get('/api/reports/reconciliation');
+        expect(res.status).toBe(422);
+    });
+
+    it('requires authentication', async () => {
+        const res = await request(app).get('/api/reports/reconciliation?period=annual');
         expect(res.status).toBe(401);
     });
 });

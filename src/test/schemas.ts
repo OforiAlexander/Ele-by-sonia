@@ -179,6 +179,93 @@ export const profitBreakdownItemSchema = Yup.object({
   margin:  Yup.number().required(),
 }).required();
 
+export const taxBreakdownSchema = Yup.object({
+  period:    Yup.string().required(),
+  from:      Yup.string().required(),
+  to:        Yup.string().required(),
+  vat:       Yup.number().required(),
+  nhil:      Yup.number().required(),
+  getfund:   Yup.number().required(),
+  covidLevy: Yup.number().required(),
+  levy:      Yup.number().required(),
+  totalTax:  Yup.number().required(),
+}).required();
+
+export const stockMovementEntrySchema = Yup.object({
+  id:          Yup.string().uuid().required(),
+  productName: Yup.string().required(),
+  sku:         Yup.string().nullable().optional(),
+  quantity:    Yup.number().integer().required(),
+  note:        Yup.string().nullable().optional(),
+  staffName:   Yup.string().required(),
+  createdAt:   Yup.string().required(),
+}).required();
+
+export const stockMovementsSchema = Yup.object({
+  period:       Yup.string().required(),
+  from:         Yup.string().required(),
+  to:           Yup.string().required(),
+  totalAdded:   Yup.number().integer().required(),
+  totalRemoved: Yup.number().integer().required(),
+  entryCount:   Yup.number().integer().required(),
+  entries:      Yup.array().of(stockMovementEntrySchema).required(),
+}).required();
+
+export const returnsReportSchema = Yup.object({
+  period:      Yup.string().required(),
+  from:        Yup.string().required(),
+  to:          Yup.string().required(),
+  returnCount: Yup.number().integer().required(),
+  returnTotal: Yup.number().required(),
+  byStaff:     Yup.array().of(Yup.object({
+    staffId:   Yup.string().uuid().required(),
+    staffName: Yup.string().required(),
+    count:     Yup.number().integer().required(),
+    total:     Yup.number().required(),
+  })).required(),
+}).required();
+
+export const activityLogEntrySchema = Yup.object({
+  id:         Yup.string().uuid().required(),
+  action:     Yup.string().required(),
+  entityType: Yup.string().required(),
+  entityId:   Yup.string().required(),
+  before:     Yup.mixed().nullable().optional(),
+  after:      Yup.mixed().nullable().optional(),
+  createdAt:  Yup.string().required(),
+  userId:     Yup.string().uuid().required(),
+  userName:   Yup.string().required(),
+}).required();
+
+export const activityLogSchema = Yup.object({
+  logs:  Yup.array().of(activityLogEntrySchema).required(),
+  total: Yup.number().integer().required(),
+  page:  Yup.number().integer().required(),
+  limit: Yup.number().integer().required(),
+}).required();
+
+export const reconciliationSchema = Yup.object({
+  period:            Yup.string().required(),
+  from:              Yup.string().required(),
+  to:                Yup.string().required(),
+  cashCount:         Yup.number().integer().required(),
+  cashTotal:         Yup.number().required(),
+  momoCount:         Yup.number().integer().required(),
+  momoTotal:         Yup.number().required(),
+  totalRevenue:      Yup.number().required(),
+  totalTransactions: Yup.number().integer().required(),
+  unitsSold:         Yup.number().integer().required(),
+  cogsTotal:         Yup.number().required(),
+  grossProfit:       Yup.number().required(),
+  discountTotal:     Yup.number().required(),
+  returnCount:       Yup.number().integer().required(),
+  returnTotal:       Yup.number().required(),
+  voidCount:         Yup.number().integer().required(),
+  voidTotal:         Yup.number().required(),
+  levyTotal:         Yup.number().required(),
+  netCashExpected:   Yup.number().required(),
+}).required();
+
 // ─── SearchVariantResult ─────────────────────────────────────────────────────
 // Mirrors: src/client/common/types/index.ts → SearchVariantResult
 // Returned by GET /api/variants/search — used by POS to look up variants
