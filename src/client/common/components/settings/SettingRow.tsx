@@ -18,7 +18,7 @@ const SettingRow: React.FC<Props> = ({ setting, submitting }) => {
 
     return (
         <Box pb="md">
-            <Group justify="space-between" align="flex-start" wrap="nowrap">
+            <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
                 <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
                     <Group gap={8} align="center">
                         <Text size="sm" fw={600}>{setting.label}</Text>
@@ -47,7 +47,12 @@ const SettingRow: React.FC<Props> = ({ setting, submitting }) => {
                     )}
                 </Stack>
 
-                <Box w={setting.type === 'boolean' ? 'auto' : 280} style={{ flexShrink: 0 }}>
+                <Box
+                    w={setting.type === 'boolean' ? 'auto' : 280}
+                    miw={setting.type === 'boolean' ? undefined : 200}
+                    className={setting.type === 'boolean' ? undefined : 'setting-control'}
+                    style={{ flexShrink: setting.type === 'boolean' ? 0 : 1 }}
+                >
                     {isReadOnly ? (
                         <Text size="sm" c="dimmed" ff="monospace">{setting.value}</Text>
                     ) : setting.type === 'boolean' ? (

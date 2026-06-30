@@ -3,7 +3,9 @@ import { createRoot } from 'react-dom/client';
 import { MantineProvider } from '@mantine/core';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import '@mantine/core/styles.css';
-import '@fontsource/inter/400.css';
+import '@fontsource/ibm-plex-sans/400.css';
+import '@fontsource/ibm-plex-sans/500.css';
+import '@fontsource/ibm-plex-sans/600.css';
 import '@fontsource/space-grotesk/700.css';
 import '@client/common/styles/global.scss';
 import '@client/common/styles/auth.scss';
@@ -23,7 +25,7 @@ const theme = {
       '#063926', '#03261a',
     ] as [string, string, string, string, string, string, string, string, string, string],
   },
-  fontFamily: 'Inter, sans-serif',
+  fontFamily: 'IBM Plex Sans, sans-serif',
   defaultRadius: 'md' as const,
   components: {
     TextInput: {

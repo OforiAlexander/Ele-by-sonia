@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Group, Text, Table, Pagination,
-    Stack, Loader, Center, SimpleGrid, Button,
+    Stack, Loader, Center, SimpleGrid, Button, Collapse, ActionIcon,
 } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import api from '../../../common/api';
 import { useAuth } from '../../../common/context/AuthContext';
 import { t } from '../../../common/translations';
@@ -14,7 +15,18 @@ import SaleStatusBadge from '../../../common/components/sales/SaleStatusBadge';
 import SaleMethodLabel from '../../../common/components/sales/SaleMethodLabel';
 import SaleStatCard from '../../../common/components/sales/SaleStatCard';
 import SalesFilterBar from '../../../common/components/sales/SalesFilterBar';
+import TableScrollWrap from '../../../common/components/TableScrollWrap';
 import type { Sale, TransactionStats } from '../../../common/types';
+
+const ChevronIcon: React.FC<{ open: boolean }> = ({ open }) => (
+    <svg
+        width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+        style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s ease' }}
+    >
+        <polyline points="6 9 12 15 18 9" />
+    </svg>
+);
 
 const PAGE_SIZE    = 25;
 const CODE_CONFIRMED = 'PAYMENT_CONFIRMED';
@@ -36,6 +48,9 @@ const TransactionsPage: React.FC = () => {
     const [filterStatus, setFilterStatus] = useState<string | null>(null);
 
     const [verifyingId, setVerifyingId] = useState<string | null>(null);
+    const [expandedId, setExpandedId]   = useState<string | null>(null);
+
+    const isMobile = useMediaQuery('(max-width: 768px)');
 
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     const hasFilters = !!(filterFrom || filterTo || filterMethod || filterStatus);
@@ -166,81 +181,142 @@ const TransactionsPage: React.FC = () => {
                 </Center>
             ) : (
                 <Stack gap="md">
-                    <Table striped highlightOnHover withTableBorder withColumnBorders style={{ fontSize: 13 }}>
-                        <Table.Thead>
-                            <Table.Tr>
-                                <Table.Th>{t(KEYS.transactions.table.date)}</Table.Th>
-                                <Table.Th>{t(KEYS.transactions.table.saleNumber)}</Table.Th>
-                                <Table.Th>{t(KEYS.transactions.table.cashier)}</Table.Th>
-                                <Table.Th>{t(KEYS.transactions.table.method)}</Table.Th>
-                                <Table.Th style={{ textAlign: 'right' }}>{t(KEYS.transactions.table.amount)}</Table.Th>
-                                <Table.Th>{t(KEYS.transactions.table.status)}</Table.Th>
-                                <Table.Th>{t(KEYS.transactions.table.phone)}</Table.Th>
-                                <Table.Th>{t(KEYS.transactions.table.reference)}</Table.Th>
-                                {canVerify && <Table.Th>{t(KEYS.transactions.table.actions)}</Table.Th>}
-                            </Table.Tr>
-                        </Table.Thead>
-                        <Table.Tbody>
-                            {sales.map((sale) => {
-                                const isPendingMomo = sale.payment_method === 'momo'
-                                    && (sale.payment_status === 'pending' || sale.payment_status === 'failed');
+                    <TableScrollWrap minWidth={isMobile ? 480 : 1020} className="table-sticky-col">
+                        <Table striped highlightOnHover withTableBorder withColumnBorders style={{ fontSize: 13 }}>
+                            <Table.Thead>
+                                <Table.Tr>
+                                    <Table.Th>{t(KEYS.transactions.table.date)}</Table.Th>
+                                    <Table.Th>{t(KEYS.transactions.table.saleNumber)}</Table.Th>
+                                    {!isMobile && <Table.Th>{t(KEYS.transactions.table.cashier)}</Table.Th>}
+                                    {!isMobile && <Table.Th>{t(KEYS.transactions.table.method)}</Table.Th>}
+                                    <Table.Th style={{ textAlign: 'right' }}>{t(KEYS.transactions.table.amount)}</Table.Th>
+                                    <Table.Th>{t(KEYS.transactions.table.status)}</Table.Th>
+                                    {!isMobile && <Table.Th>{t(KEYS.transactions.table.phone)}</Table.Th>}
+                                    {!isMobile && <Table.Th>{t(KEYS.transactions.table.reference)}</Table.Th>}
+                                    {!isMobile && canVerify && <Table.Th>{t(KEYS.transactions.table.actions)}</Table.Th>}
+                                    {isMobile && <Table.Th />}
+                                </Table.Tr>
+                            </Table.Thead>
+                            <Table.Tbody>
+                                {sales.map((sale) => {
+                                    const isPendingMomo = sale.payment_method === 'momo'
+                                        && (sale.payment_status === 'pending' || sale.payment_status === 'failed');
+                                    const isExpanded = expandedId === sale.id;
 
-                                return (
-                                    <Table.Tr key={sale.id}>
-                                        <Table.Td>
-                                            <Text size="xs" c="dimmed">{formatDateTime(sale.created_at)}</Text>
-                                        </Table.Td>
-                                        <Table.Td>
-                                            <Text size="sm" fw={600} ff="monospace">{sale.sale_number}</Text>
-                                        </Table.Td>
-                                        <Table.Td>
-                                            <Text size="sm">{sale.staff?.name ?? '—'}</Text>
-                                        </Table.Td>
-                                        <Table.Td>
-                                            <SaleMethodLabel method={sale.payment_method} />
-                                        </Table.Td>
-                                        <Table.Td style={{ textAlign: 'right' }}>
-                                            <Text size="sm" fw={600}>{formatPrice(Number(sale.amount_due))}</Text>
-                                        </Table.Td>
-                                        <Table.Td>
-                                            <SaleStatusBadge status={sale.payment_status} />
-                                        </Table.Td>
-                                        <Table.Td>
-                                            <Text size="xs" ff="monospace" c="dimmed">
-                                                {sale.customer_phone ?? '—'}
-                                            </Text>
-                                        </Table.Td>
-                                        <Table.Td>
-                                            {sale.paystack_reference ? (
-                                                <Text size="xs" ff="monospace" c="dimmed" lineClamp={1} title={sale.paystack_reference}>
-                                                    {sale.paystack_reference}
-                                                </Text>
-                                            ) : (
-                                                <Text size="xs" c="dimmed">—</Text>
-                                            )}
-                                        </Table.Td>
-                                        {canVerify && (
-                                            <Table.Td>
-                                                {isPendingMomo ? (
-                                                    <Button
-                                                        size="xs"
-                                                        color="green"
-                                                        variant="light"
-                                                        loading={verifyingId === sale.id}
-                                                        onClick={() => handleVerify(sale)}
-                                                    >
-                                                        {t(KEYS.transactions.verify.btn)}
-                                                    </Button>
-                                                ) : (
-                                                    <Text size="xs" c="dimmed">—</Text>
+                                    const verifyAction = isPendingMomo ? (
+                                        <Button
+                                            size="xs"
+                                            color="green"
+                                            variant="light"
+                                            loading={verifyingId === sale.id}
+                                            onClick={() => handleVerify(sale)}
+                                        >
+                                            {t(KEYS.transactions.verify.btn)}
+                                        </Button>
+                                    ) : (
+                                        <Text size="xs" c="dimmed">—</Text>
+                                    );
+
+                                    return (
+                                        <React.Fragment key={sale.id}>
+                                            <Table.Tr>
+                                                <Table.Td>
+                                                    <Text size="xs" c="dimmed">{formatDateTime(sale.created_at)}</Text>
+                                                </Table.Td>
+                                                <Table.Td>
+                                                    <Text size="sm" fw={600} ff="monospace">{sale.sale_number}</Text>
+                                                </Table.Td>
+                                                {!isMobile && (
+                                                    <Table.Td>
+                                                        <Text size="sm">{sale.staff?.name ?? '—'}</Text>
+                                                    </Table.Td>
                                                 )}
-                                            </Table.Td>
-                                        )}
-                                    </Table.Tr>
-                                );
-                            })}
-                        </Table.Tbody>
-                    </Table>
+                                                {!isMobile && (
+                                                    <Table.Td>
+                                                        <SaleMethodLabel method={sale.payment_method} />
+                                                    </Table.Td>
+                                                )}
+                                                <Table.Td style={{ textAlign: 'right' }}>
+                                                    <Text size="sm" fw={600}>{formatPrice(Number(sale.amount_due))}</Text>
+                                                </Table.Td>
+                                                <Table.Td>
+                                                    <SaleStatusBadge status={sale.payment_status} />
+                                                </Table.Td>
+                                                {!isMobile && (
+                                                    <Table.Td>
+                                                        <Text size="xs" ff="monospace" c="dimmed">
+                                                            {sale.customer_phone ?? '—'}
+                                                        </Text>
+                                                    </Table.Td>
+                                                )}
+                                                {!isMobile && (
+                                                    <Table.Td>
+                                                        {sale.paystack_reference ? (
+                                                            <Text size="xs" ff="monospace" c="dimmed" lineClamp={1} title={sale.paystack_reference}>
+                                                                {sale.paystack_reference}
+                                                            </Text>
+                                                        ) : (
+                                                            <Text size="xs" c="dimmed">—</Text>
+                                                        )}
+                                                    </Table.Td>
+                                                )}
+                                                {!isMobile && canVerify && (
+                                                    <Table.Td>{verifyAction}</Table.Td>
+                                                )}
+                                                {isMobile && (
+                                                    <Table.Td>
+                                                        <ActionIcon
+                                                            variant="subtle"
+                                                            color="gray"
+                                                            size="sm"
+                                                            aria-label={t(KEYS.transactions.table.actions)}
+                                                            onClick={() => setExpandedId(isExpanded ? null : sale.id)}
+                                                        >
+                                                            <ChevronIcon open={isExpanded} />
+                                                        </ActionIcon>
+                                                    </Table.Td>
+                                                )}
+                                            </Table.Tr>
+                                            {isMobile && (
+                                                <Table.Tr>
+                                                    <Table.Td colSpan={5} p={0} style={{ border: isExpanded ? undefined : 'none' }}>
+                                                        <Collapse in={isExpanded}>
+                                                            <Stack gap={6} p="sm">
+                                                                <Group justify="space-between" gap="xs">
+                                                                    <Text size="xs" c="dimmed">{t(KEYS.transactions.table.cashier)}</Text>
+                                                                    <Text size="xs">{sale.staff?.name ?? '—'}</Text>
+                                                                </Group>
+                                                                <Group justify="space-between" gap="xs">
+                                                                    <Text size="xs" c="dimmed">{t(KEYS.transactions.table.method)}</Text>
+                                                                    <SaleMethodLabel method={sale.payment_method} />
+                                                                </Group>
+                                                                <Group justify="space-between" gap="xs">
+                                                                    <Text size="xs" c="dimmed">{t(KEYS.transactions.table.phone)}</Text>
+                                                                    <Text size="xs" ff="monospace">{sale.customer_phone ?? '—'}</Text>
+                                                                </Group>
+                                                                <Group justify="space-between" gap="xs">
+                                                                    <Text size="xs" c="dimmed">{t(KEYS.transactions.table.reference)}</Text>
+                                                                    <Text size="xs" ff="monospace" lineClamp={1} title={sale.paystack_reference ?? undefined}>
+                                                                        {sale.paystack_reference ?? '—'}
+                                                                    </Text>
+                                                                </Group>
+                                                                {canVerify && (
+                                                                    <Group justify="space-between" gap="xs">
+                                                                        <Text size="xs" c="dimmed">{t(KEYS.transactions.table.actions)}</Text>
+                                                                        {verifyAction}
+                                                                    </Group>
+                                                                )}
+                                                            </Stack>
+                                                        </Collapse>
+                                                    </Table.Td>
+                                                </Table.Tr>
+                                            )}
+                                        </React.Fragment>
+                                    );
+                                })}
+                            </Table.Tbody>
+                        </Table>
+                    </TableScrollWrap>
 
                     {totalPages > 1 && (
                         <Group justify="center">

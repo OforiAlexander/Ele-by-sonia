@@ -3,6 +3,7 @@ import {
     Group, Text, Button, Table, Pagination,
     Stack, Loader, Center,
 } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { Link } from 'react-router-dom';
 import api from '../../../common/api';
 import { useAuth } from '../../../common/context/AuthContext';
@@ -15,6 +16,7 @@ import SaleStatusBadge from '../../../common/components/sales/SaleStatusBadge';
 import SaleMethodLabel from '../../../common/components/sales/SaleMethodLabel';
 import SalesFilterBar from '../../../common/components/sales/SalesFilterBar';
 import SaleDetailDrawer from '../../../common/components/sales/SaleDetailDrawer';
+import TableScrollWrap from '../../../common/components/TableScrollWrap';
 import type { Sale } from '../../../common/types';
 
 const PAGE_SIZE = 20;
@@ -36,6 +38,8 @@ const SalesHistoryPage: React.FC = () => {
     const [detailSale, setDetailSale]       = useState<Sale | null>(null);
     const [detailLoading, setDetailLoading] = useState(false);
     const [voiding, setVoiding]             = useState(false);
+
+    const isMobile = useMediaQuery('(max-width: 768px)');
 
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     const hasFilters = !!(filterFrom || filterTo || filterMethod);
@@ -142,48 +146,50 @@ const SalesHistoryPage: React.FC = () => {
                 </Center>
             ) : (
                 <Stack gap="md">
-                    <Table striped highlightOnHover withTableBorder withColumnBorders style={{ fontSize: 13 }}>
-                        <Table.Thead>
-                            <Table.Tr>
-                                <Table.Th>{t(KEYS.salesHistory.table.saleNumber)}</Table.Th>
-                                <Table.Th>{t(KEYS.salesHistory.table.date)}</Table.Th>
-                                <Table.Th>{t(KEYS.salesHistory.table.cashier)}</Table.Th>
-                                <Table.Th>{t(KEYS.salesHistory.table.method)}</Table.Th>
-                                <Table.Th style={{ textAlign: 'right' }}>{t(KEYS.salesHistory.table.amount)}</Table.Th>
-                                <Table.Th>{t(KEYS.salesHistory.table.status)}</Table.Th>
-                                <Table.Th>{t(KEYS.salesHistory.table.actions)}</Table.Th>
-                            </Table.Tr>
-                        </Table.Thead>
-                        <Table.Tbody>
-                            {sales.map((sale) => (
-                                <Table.Tr key={sale.id} style={{ opacity: sale.voided_at ? 0.6 : 1 }}>
-                                    <Table.Td>
-                                        <Text size="sm" fw={600} ff="monospace">{sale.sale_number}</Text>
-                                    </Table.Td>
-                                    <Table.Td>
-                                        <Text size="sm">{formatDateTime(sale.created_at)}</Text>
-                                    </Table.Td>
-                                    <Table.Td>
-                                        <Text size="sm">{sale.staff?.name ?? '—'}</Text>
-                                    </Table.Td>
-                                    <Table.Td>
-                                        <SaleMethodLabel method={sale.payment_method} />
-                                    </Table.Td>
-                                    <Table.Td style={{ textAlign: 'right' }}>
-                                        <Text size="sm" fw={600}>{formatPrice(Number(sale.amount_due))}</Text>
-                                    </Table.Td>
-                                    <Table.Td>
-                                        <SaleStatusBadge status={sale.payment_status} voided={!!sale.voided_at} />
-                                    </Table.Td>
-                                    <Table.Td>
-                                        <Button size="xs" variant="subtle" color="green" onClick={() => openDetail(sale)}>
-                                            {t(KEYS.common.viewBtn)}
-                                        </Button>
-                                    </Table.Td>
+                    <TableScrollWrap minWidth={isMobile ? 560 : 760} className="table-sticky-col">
+                        <Table striped highlightOnHover withTableBorder withColumnBorders style={{ fontSize: 13 }}>
+                            <Table.Thead>
+                                <Table.Tr>
+                                    <Table.Th>{t(KEYS.salesHistory.table.saleNumber)}</Table.Th>
+                                    <Table.Th>{t(KEYS.salesHistory.table.date)}</Table.Th>
+                                    <Table.Th className="table-col-secondary">{t(KEYS.salesHistory.table.cashier)}</Table.Th>
+                                    <Table.Th className="table-col-secondary">{t(KEYS.salesHistory.table.method)}</Table.Th>
+                                    <Table.Th style={{ textAlign: 'right' }}>{t(KEYS.salesHistory.table.amount)}</Table.Th>
+                                    <Table.Th>{t(KEYS.salesHistory.table.status)}</Table.Th>
+                                    <Table.Th>{t(KEYS.salesHistory.table.actions)}</Table.Th>
                                 </Table.Tr>
-                            ))}
-                        </Table.Tbody>
-                    </Table>
+                            </Table.Thead>
+                            <Table.Tbody>
+                                {sales.map((sale) => (
+                                    <Table.Tr key={sale.id} style={{ opacity: sale.voided_at ? 0.6 : 1 }}>
+                                        <Table.Td>
+                                            <Text size="sm" fw={600} ff="monospace">{sale.sale_number}</Text>
+                                        </Table.Td>
+                                        <Table.Td>
+                                            <Text size="sm">{formatDateTime(sale.created_at)}</Text>
+                                        </Table.Td>
+                                        <Table.Td className="table-col-secondary">
+                                            <Text size="sm">{sale.staff?.name ?? '—'}</Text>
+                                        </Table.Td>
+                                        <Table.Td className="table-col-secondary">
+                                            <SaleMethodLabel method={sale.payment_method} />
+                                        </Table.Td>
+                                        <Table.Td style={{ textAlign: 'right' }}>
+                                            <Text size="sm" fw={600}>{formatPrice(Number(sale.amount_due))}</Text>
+                                        </Table.Td>
+                                        <Table.Td>
+                                            <SaleStatusBadge status={sale.payment_status} voided={!!sale.voided_at} />
+                                        </Table.Td>
+                                        <Table.Td>
+                                            <Button size="xs" variant="subtle" color="green" onClick={() => openDetail(sale)}>
+                                                {t(KEYS.common.viewBtn)}
+                                            </Button>
+                                        </Table.Td>
+                                    </Table.Tr>
+                                ))}
+                            </Table.Tbody>
+                        </Table>
+                    </TableScrollWrap>
 
                     {totalPages > 1 && (
                         <Group justify="center">

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Group, Paper, Skeleton, Stack, Text, ThemeIcon } from '@mantine/core';
+import { Group, Paper, Skeleton, SimpleGrid, Stack, Text, ThemeIcon } from '@mantine/core';
 import { t } from '../translations';
 import { KEYS } from '../keys';
 
@@ -55,7 +55,7 @@ const STATS = [
 ] as const;
 
 const StaffSummaryBar: React.FC<Props> = (props) => (
-  <Group grow gap="md" mb="md">
+  <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md" mb="md">
     {STATS.map(({ icon, color, labelKey, getValue }) => (
       <Paper key={labelKey} p="md" radius="md" withBorder>
         <Group gap="md" wrap="nowrap">
@@ -72,7 +72,7 @@ const StaffSummaryBar: React.FC<Props> = (props) => (
         </Group>
       </Paper>
     ))}
-  </Group>
+  </SimpleGrid>
 );
 
 export default StaffSummaryBar;
